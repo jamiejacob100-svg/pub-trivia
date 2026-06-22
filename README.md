@@ -1,14 +1,21 @@
 # 🍺 Sydney Pub Crawl Trivia
 
-An interactive map of **32 Sydney pubs** — tap a marker, answer that pub's trivia round, and clear the map. Or enter **Pub Crawl mode** and tackle a themed route where pubs unlock one at a time.
+An interactive map of **560+ Sydney pubs & bars** — tap a marker, answer that pub's trivia round, and clear the map. Play solo, in **teams**, or tackle a themed **Pub Crawl** where pubs unlock one at a time.
 
 **▶️ Play it live:** https://jamiejacob100-svg.github.io/pub-trivia/
 
 ## How it works
-- A full-screen map of Sydney drops a 🍺 pin on each pub.
+- A full-screen map of Sydney drops a 🍺 pin on each pub (clustered for clarity — zoom in to split them out).
 - Click a pin → a popup shows the **pub name**, its **trivia topic**, and a **Start Quiz** button.
 - Each round is **10 questions** with an optional **per-question timer** (Off / 15 / 20 / 30s).
 - Clear a pub and its pin turns into a ✅. Progress shows in the top bar.
+
+## 👥 Team mode
+Hit **Teams** to add up to 6 teams and pass the device around. Each round you finish is scored to whoever's turn it is, then play passes to the next team. The top bar shows whose turn it is, and **Scores** opens a live leaderboard.
+
+## The pubs
+- **12 featured pubs** — hand-curated with themed topics, blurbs, and used in the crawl routes.
+- **530 more** pulled live from [OpenStreetMap](https://www.openstreetmap.org/) with real, community-mapped coordinates, spanning The Rocks to Newtown, Manly, Coogee, Balmain and beyond.
 
 ## 🍻 Pub Crawl mode
 Pick a route and the pubs unlock in order — clear each round to reach the next pub (🔒 = locked). Routes:

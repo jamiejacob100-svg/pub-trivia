@@ -8,6 +8,10 @@
   integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="pubs-data.js"></script>
 <style>
   :root {
     --bg: #1a0f08; --bg2: #2a1810; --panel: #2e1d12; --panel-light: #3d2818;
@@ -165,6 +169,37 @@
   .result .big { font-size: 56px; }
   .result .score { font-size: 30px; font-weight: 800; color: var(--gold-bright); margin-top: 4px; }
   .result .msg { color: var(--cream); opacity: .82; margin-top: 6px; line-height: 1.4; }
+
+  /* Marker clusters themed to match */
+  .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large { background: rgba(224,164,88,0.28); }
+  .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold)); color: #3a2415; }
+  .marker-cluster span { font-weight: 800; color: #3a2415; }
+
+  /* Team mode */
+  .turn-pill { color: #1a0f08; font-weight: 800; border: none; }
+  .team-row { display: flex; gap: 10px; align-items: center; margin-bottom: 9px; }
+  .team-chip { width: 13px; height: 36px; border-radius: 5px; flex-shrink: 0; }
+  .team-input {
+    flex: 1; background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
+    padding: 10px 13px; border-radius: 10px; font-size: 15px; font-family: inherit;
+  }
+  .team-input:focus { outline: none; border-color: var(--gold); }
+  .mini-x { background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
+    width: 38px; height: 38px; border-radius: 10px; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+  .mini-x:hover { border-color: var(--red); color: var(--red); }
+  .add-row { background: transparent; border: 1.5px dashed var(--border); color: var(--gold);
+    padding: 10px; width: 100%; border-radius: 10px; cursor: pointer; font-size: 14px; font-family: inherit; margin-top: 2px; }
+  .add-row:hover { border-color: var(--gold); }
+  .add-row:disabled { opacity: .35; cursor: not-allowed; }
+  .sb-row { display: flex; align-items: center; gap: 12px; background: var(--bg2);
+    border: 1.5px solid var(--border); padding: 11px 15px; border-radius: 11px; margin-bottom: 8px; }
+  .sb-row.lead { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .sb-row .rank { font-weight: 800; font-size: 17px; color: var(--gold); width: 26px; }
+  .sb-row .chip { width: 12px; height: 26px; border-radius: 4px; }
+  .sb-row .nm { flex: 1; font-weight: 700; }
+  .sb-row .pts { font-weight: 800; color: var(--gold-bright); font-size: 17px; }
+  .sb-row .pl { font-size: 12px; opacity: .6; margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -183,7 +218,9 @@
         <option value="30">30s</option>
       </select>
     </label>
-    <div class="pill" id="progressPill">0 / 32 cleared</div>
+    <div class="pill turn-pill" id="turnPill" style="display:none;"></div>
+    <div class="pill" id="progressPill">0 cleared</div>
+    <button class="crawl-btn" id="teamsBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">👥 Teams</button>
     <button class="crawl-btn" id="crawlBtn">🍻 Pub Crawl</button>
   </div>
 
@@ -200,6 +237,30 @@
       <div class="card-body">
         <p style="font-size:13px;opacity:.75;margin-bottom:16px;">Pubs unlock one at a time along the route — clear each round to reach the next pub. 🔒 means locked.</p>
         <div id="routeList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team overlay (setup + scoreboard) -->
+  <div class="overlay" id="teamOverlay">
+    <div class="card">
+      <div class="card-head">
+        <div class="eyebrow" id="teamEyebrow">Pass-and-play</div>
+        <div class="title" id="teamTitle">👥 Team Mode</div>
+        <button class="close-x" id="teamClose">&times;</button>
+      </div>
+      <div class="card-body">
+        <div id="setupView2">
+          <p style="font-size:13px;opacity:.75;margin-bottom:16px;">Add teams and pass the device around — each quiz you finish is scored to whoever's turn it is, then play moves to the next team.</p>
+          <div id="teamInputs"></div>
+          <button class="add-row" id="addTeam">+ Add another team</button>
+          <button class="btn" id="startTeams">Start Team Mode ▶</button>
+        </div>
+        <div id="scoreView" style="display:none;">
+          <div id="scoreList"></div>
+          <button class="btn" id="editTeams">Edit Teams ✎</button>
+          <button class="btn ghost" id="endTeams">End Team Mode</button>
+        </div>
       </div>
     </div>
   </div>
@@ -477,6 +538,13 @@ const completed = new Set();  // global cleared (free play)
 const bestScore = {};         // pubIndex -> best score
 const markers = [];
 
+/* team mode */
+let teamMode = false;
+let teams = [];               // [{name, color, score, played}]
+let currentTeam = 0;
+const TEAM_COLORS = ['#d2553f','#5a8fc7','#4caf6d','#9d6bb5','#e0a458','#d98cb3'];
+let setupNames = ['Team 1', 'Team 2'];
+
 const $ = (id) => document.getElementById(id);
 function shuffle(arr) { const a = arr.slice(); for (let i = a.length-1; i>0; i--) { const j = (Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
@@ -527,13 +595,23 @@ function popupHtml(i) {
     <div class="pop-blurb">${p.blurb}</div>${note}${btn}`;
 }
 
+// The 12 themed pubs are "featured"; the rest come from OpenStreetMap and cluster for a clean map.
+const CURATED_COUNT = PUBS.length;
+(window.EXTRA_PUBS || []).forEach(e => PUBS.push({
+  name: e.n, area: e.s || 'Sydney', lat: e.lat, lng: e.lng, topic: e.t,
+  blurb: 'A Sydney watering hole — tap below for a round of ' + TOPICS[e.t].name + '.', extra: true,
+}));
+
+const cluster = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, chunkedLoading: true });
 PUBS.forEach((p, i) => {
-  const m = L.marker([p.lat, p.lng], { icon: pinIcon('idle') }).addTo(map);
+  const m = L.marker([p.lat, p.lng], { icon: pinIcon('idle') });
   m.bindPopup('', { closeButton: true });
   m.on('popupopen', () => m.setPopupContent(popupHtml(i)));
   markers.push(m);
+  if (p.extra) cluster.addLayer(m); else m.addTo(map);
 });
-map.fitBounds(PUBS.map(p => [p.lat, p.lng]), { padding: [70, 70] });
+map.addLayer(cluster);
+map.fitBounds(PUBS.slice(0, CURATED_COUNT).map(p => [p.lat, p.lng]), { padding: [70, 70] });
 
 function refreshMarkers() {
   PUBS.forEach((p, i) => markers[i].setIcon(pinIcon(pubState(i))));
@@ -549,8 +627,17 @@ function updateTopbar() {
     const b = $('crawlBtn'); b.textContent = '✖ Exit Crawl'; b.classList.add('exit');
   } else {
     $('modeSub').textContent = 'Free play · tap any pub';
-    $('progressPill').textContent = `${completed.size} / ${PUBS.length} cleared`;
+    $('progressPill').textContent = `${completed.size} cleared`;
     const b = $('crawlBtn'); b.textContent = '🍻 Pub Crawl'; b.classList.remove('exit');
+  }
+  const tp = $('turnPill');
+  if (teamMode && teams.length) {
+    const t = teams[currentTeam];
+    tp.style.display = ''; tp.style.background = t.color; tp.textContent = '▶ ' + t.name;
+    $('teamsBtn').textContent = '🏆 Scores';
+  } else {
+    tp.style.display = 'none';
+    $('teamsBtn').textContent = '👥 Teams';
   }
 }
 
@@ -574,6 +661,7 @@ function startCrawl(idx) {
   crawlRoute = ROUTES[idx];
   crawlPos = 0;
   $('crawlOverlay').classList.remove('active');
+  map.removeLayer(cluster);   // hide the 500+ extra pubs; focus on the route
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
   routeLine = L.polyline(crawlRoute.stops.map(i => [PUBS[i].lat, PUBS[i].lng]),
     { color: '#e0a458', weight: 3, opacity: .7, dashArray: '8 9' }).addTo(map);
@@ -587,10 +675,11 @@ function exitCrawl() {
   mode = 'free';
   crawlRoute = null;
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  map.addLayer(cluster);
   refreshMarkers();
   updateTopbar();
   map.closePopup();
-  map.fitBounds(PUBS.map(p => [p.lat, p.lng]), { padding: [70, 70] });
+  map.fitBounds(PUBS.slice(0, CURATED_COUNT).map(p => [p.lat, p.lng]), { padding: [70, 70] });
 }
 
 function goToActivePub() {
@@ -605,6 +694,70 @@ $('crawlBtn').onclick = () => {
   else { buildRouteList(); $('crawlOverlay').classList.add('active'); }
 };
 $('crawlClose').onclick = () => $('crawlOverlay').classList.remove('active');
+
+/* ===================== TEAM MODE ===================== */
+function renderTeamSetup() {
+  const box = $('teamInputs'); box.innerHTML = '';
+  setupNames.forEach((nm, i) => {
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    row.innerHTML = `<div class="team-chip" style="background:${TEAM_COLORS[i]}"></div>
+      <input class="team-input" maxlength="22" value="${nm.replace(/"/g,'&quot;')}" placeholder="Team ${i+1}" data-i="${i}">
+      <button class="mini-x" data-rm="${i}" ${setupNames.length<=1?'disabled style="opacity:.3"':''}>&times;</button>`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll('input').forEach(inp => inp.oninput = e => setupNames[+e.target.dataset.i] = e.target.value);
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => {
+    const i = +e.currentTarget.dataset.rm;
+    if (setupNames.length > 1) { setupNames.splice(i, 1); renderTeamSetup(); }
+  });
+  $('addTeam').disabled = setupNames.length >= 6;
+}
+
+function renderScores() {
+  const list = $('scoreList'); list.innerHTML = '';
+  const ranked = teams.map((t, i) => ({ ...t, ci: i })).sort((a, b) => b.score - a.score);
+  const top = ranked[0].score;
+  const medals = ['🥇','🥈','🥉'];
+  ranked.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'sb-row' + (t.score === top && top > 0 ? ' lead' : '');
+    row.innerHTML = `<span class="rank">${medals[i] || (i+1)}</span>
+      <span class="chip" style="background:${t.color}"></span>
+      <span class="nm">${t.name}</span>
+      <span class="pts">${t.score}</span><span class="pl">${t.played} pub${t.played!==1?'s':''}</span>`;
+    list.appendChild(row);
+  });
+}
+
+function openTeamOverlay() {
+  if (teamMode) {
+    $('teamEyebrow').textContent = 'Standings';
+    $('teamTitle').textContent = '🏆 Scoreboard';
+    $('setupView2').style.display = 'none';
+    $('scoreView').style.display = 'block';
+    renderScores();
+  } else {
+    $('teamEyebrow').textContent = 'Pass-and-play';
+    $('teamTitle').textContent = '👥 Team Mode';
+    $('scoreView').style.display = 'none';
+    $('setupView2').style.display = 'block';
+    renderTeamSetup();
+  }
+  $('teamOverlay').classList.add('active');
+}
+
+$('teamsBtn').onclick = openTeamOverlay;
+$('teamClose').onclick = () => $('teamOverlay').classList.remove('active');
+$('addTeam').onclick = () => { if (setupNames.length < 6) { setupNames.push('Team ' + (setupNames.length+1)); renderTeamSetup(); } };
+$('startTeams').onclick = () => {
+  teams = setupNames.map((nm, i) => ({ name: nm.trim() || `Team ${i+1}`, color: TEAM_COLORS[i], score: 0, played: 0 }));
+  teamMode = true; currentTeam = 0;
+  $('teamOverlay').classList.remove('active');
+  updateTopbar();
+};
+$('editTeams').onclick = () => { setupNames = teams.map(t => t.name); teamMode = false; openTeamOverlay(); };
+$('endTeams').onclick = () => { teamMode = false; teams = []; $('teamOverlay').classList.remove('active'); updateTopbar(); };
 
 /* ===================== QUIZ ENGINE ===================== */
 let quiz = null;
@@ -622,7 +775,7 @@ window.startQuiz = function (i) {
     return { q: item.q, options, correctIndex: options.indexOf(correct) };
   });
   quiz = { pubIndex: i, deck, current: 0, score: 0, answered: false };
-  $('qPub').textContent = `${p.name} · ${p.area}`;
+  $('qPub').textContent = teamMode ? `${teams[currentTeam].name}'s turn · ${p.name}` : `${p.name} · ${p.area}`;
   $('qTopic').textContent = `${t.emoji} ${t.name}`;
   $('resultView').style.display = 'none';
   $('playView').style.display = 'block';
@@ -704,6 +857,16 @@ function showResult() {
     if (pos === crawlPos) crawlPos++;        // advance only the current target
     if (crawlPos >= crawlRoute.stops.length) crawlJustFinished = true;
   }
+
+  // team scoring: bank points for the active team, then pass the turn
+  let teamMsg = '';
+  if (teamMode && teams.length) {
+    const team = teams[currentTeam];
+    team.score += s; team.played += 1;
+    currentTeam = (currentTeam + 1) % teams.length;
+    teamMsg = ` ${team.name} banked ${s} point${s !== 1 ? 's' : ''} — next up: ${teams[currentTeam].name}.`;
+  }
+
   refreshMarkers();
   updateTopbar();
 
@@ -718,7 +881,7 @@ function showResult() {
     : "Tough round! Sink a schooner and try again.";
   if (mode === 'crawl' && crawlJustFinished) msg = `🎉 You've conquered the ${crawlRoute.name}! Legendary effort.`;
   else if (mode === 'crawl') msg += ` On to stop ${crawlPos + 1} of ${crawlRoute.stops.length}!`;
-  $('rMsg').textContent = msg;
+  $('rMsg').textContent = msg + teamMsg;
 
   $('againBtn').textContent = 'Play This Round Again 🔁';
   $('backBtn').textContent = (mode === 'crawl' && crawlJustFinished) ? 'Finish Crawl 🎉'
@@ -731,8 +894,8 @@ function closeQuiz() {
   if (mode === 'crawl') {
     if (crawlJustFinished) { exitCrawl(); }
     else goToActivePub();
-  } else {
-    markers[quiz.pubIndex].openPopup();
+  } else if (!PUBS[quiz.pubIndex].extra) {
+    markers[quiz.pubIndex].openPopup();   // clustered extras can't reliably reopen
   }
 }
 $('backBtn').onclick = closeQuiz;
