@@ -240,6 +240,36 @@
   .scorecard tr.par-row td { color: var(--gold); opacity: .75; font-style: italic; border-bottom: 2px solid var(--border); }
   .scorecard tr.lead td { background: rgba(224,164,88,.12); }
   .sc-wrap { overflow-x: auto; margin: 4px 0 6px; }
+
+  /* Camera & Photos */
+  .cam-btn { margin-top: 8px; width: 100%; cursor: pointer; background: var(--bg2); color: var(--gold-bright);
+    border: 1.5px solid var(--gold); border-radius: 10px; padding: 10px; font-size: 14px; font-weight: 700; font-family: inherit; }
+  .cam-btn:hover { background: rgba(224,164,88,.1); }
+  .cam-stage { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 12px; overflow: hidden;
+    border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; }
+  .cam-stage video { width: 100%; height: 100%; object-fit: cover; }
+  .cam-msg { position: absolute; padding: 22px; text-align: center; font-size: 14px; color: var(--cream); opacity: .85; }
+  .cam-controls { display: flex; align-items: center; justify-content: center; gap: 28px; margin: 16px 0; }
+  .shutter { width: 66px; height: 66px; border-radius: 50%; background: var(--gold-bright); border: 4px solid var(--panel);
+    box-shadow: 0 0 0 3px var(--gold); cursor: pointer; transition: transform .1s; }
+  .shutter:active { transform: scale(.92); }
+  .cam-flip, .cam-upload { width: 46px; height: 46px; border-radius: 50%; background: var(--bg2); border: 1.5px solid var(--border);
+    color: var(--cream); font-size: 19px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .cam-flip:hover, .cam-upload:hover { border-color: var(--gold); }
+  .cam-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; min-height: 6px; }
+  .cam-strip img { height: 62px; width: 62px; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--border); flex-shrink: 0; }
+  .cam-badge { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 800; margin-left: 5px; }
+  .ph-group { margin-bottom: 18px; }
+  .ph-group h3 { font-size: 14px; color: var(--gold-bright); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  .ph-group h3 .c { color: var(--gold); font-weight: 600; font-size: 12px; }
+  .ph-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+  .ph-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 9px; border: 1.5px solid var(--border); cursor: pointer; transition: transform .1s; }
+  .ph-grid img:hover { transform: scale(1.04); border-color: var(--gold); }
+  .ph-empty { text-align: center; opacity: .6; font-size: 14px; padding: 30px 10px; }
+  .lb-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+  .lb-actions button, .lb-actions a { background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
+    border-radius: 10px; padding: 10px 16px; font-size: 14px; cursor: pointer; font-family: inherit; text-decoration: none; }
+  .lb-actions .del { border-color: var(--red); color: #f0b9ac; }
 </style>
 </head>
 <body>
@@ -261,6 +291,7 @@
     <div class="pill turn-pill" id="turnPill" style="display:none;"></div>
     <div class="pill" id="progressPill">0 cleared</div>
     <button class="crawl-btn" id="teamsBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">👥 Teams</button>
+    <button class="crawl-btn" id="photosBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">📷 Photos<span class="cam-badge" id="photoBadge" style="display:none;">0</span></button>
     <button class="crawl-btn" id="golfBtn" style="background:var(--bg2);color:#8fe0aa;border:1.5px solid var(--green);">⛳ Pub Golf</button>
     <button class="crawl-btn" id="crawlBtn">🍻 Pub Crawl</button>
   </div>
@@ -359,6 +390,64 @@
           <div class="sc-wrap"><table class="scorecard" id="scTable"></table></div>
           <button class="btn" id="golfResume" style="display:none;">Resume Round →</button>
           <button class="btn ghost" id="golfExit">Exit Pub Golf 🗺️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera overlay -->
+  <div class="overlay" id="cameraOverlay">
+    <div class="card">
+      <div class="card-head">
+        <div class="eyebrow">Snap the night</div>
+        <div class="title" id="camTitle">📷 Camera</div>
+        <button class="close-x" id="camClose">&times;</button>
+      </div>
+      <div class="card-body">
+        <div class="cam-stage">
+          <video id="camVideo" autoplay playsinline muted></video>
+          <div class="cam-msg" id="camMsg" style="display:none;"></div>
+        </div>
+        <div class="cam-controls">
+          <button class="cam-flip" id="camFlip" title="Switch camera">🔄</button>
+          <button class="shutter" id="shutter" aria-label="Take photo"></button>
+          <label class="cam-upload" id="camUploadLabel" title="Add from device">📁<input type="file" id="camUpload" accept="image/*" capture="environment" multiple hidden></label>
+        </div>
+        <div class="cam-strip" id="camStrip"></div>
+        <button class="btn ghost" id="camDone">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photos overlay -->
+  <div class="overlay" id="photosOverlay">
+    <div class="card">
+      <div class="card-head">
+        <div class="eyebrow" id="photosCount">0 photos</div>
+        <div class="title">📷 Night Photos</div>
+        <button class="close-x" id="photosClose">&times;</button>
+      </div>
+      <div class="card-body">
+        <div class="ph-empty" id="photosEmpty">No photos yet — open a pub and tap <b>📷 Camera</b> to start snapping.</div>
+        <div id="photosGallery"></div>
+        <button class="btn ghost" id="clearPhotos" style="display:none;">Clear All Photos 🗑️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="overlay" id="lightbox">
+    <div class="card" style="max-width:520px;">
+      <div class="card-head">
+        <div class="eyebrow">Photo</div>
+        <div class="title" id="lbCap" style="font-size:15px;"></div>
+        <button class="close-x" id="lbClose">&times;</button>
+      </div>
+      <div class="card-body" style="text-align:center;">
+        <img id="lbImg" alt="" style="max-width:100%;max-height:60vh;border-radius:12px;border:1.5px solid var(--border);">
+        <div class="lb-actions">
+          <a id="lbDownload" download>⬇ Save</a>
+          <button class="del" id="lbDelete">🗑 Delete</button>
         </div>
       </div>
     </div>
@@ -691,7 +780,8 @@ function popupHtml(i) {
   }
   return `<div class="pop-name">${p.name}</div><div class="pop-sub">${p.area}</div>
     <div class="pop-topic">${t.emoji} ${t.name}</div>
-    <div class="pop-blurb">${p.blurb}</div>${note}${btn}`;
+    <div class="pop-blurb">${p.blurb}</div>${note}${btn}
+    <button class="cam-btn" onclick="openCamera(${i})">📷 Camera</button>`;
 }
 
 // The 12 themed pubs are "featured"; the rest come from OpenStreetMap and cluster for a clean map.
@@ -1100,6 +1190,131 @@ $('golfExit').onclick = () => {
   $('golfOverlay').classList.remove('active');
   map.fitBounds(PUBS.slice(0, CURATED_COUNT).map(p => [p.lat, p.lng]), { padding: [70, 70] });
 };
+
+/* ===================== CAMERA & PHOTOS =====================
+   Photos are stored in IndexedDB (handles large blobs, persists across the
+   whole night / page refreshes) keyed by pub name. */
+const PHOTO_DB = 'pubtrivia-photos';
+function pdb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(PHOTO_DB, 1);
+    r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true }); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbAdd(rec) { const db = await pdb(); return new Promise((res, rej) => { const tx = db.transaction('photos', 'readwrite'); const rq = tx.objectStore('photos').add(rec); rq.onsuccess = () => res(rq.result); tx.onerror = () => rej(tx.error); }); }
+async function dbAll() { const db = await pdb(); return new Promise((res, rej) => { const rq = db.transaction('photos', 'readonly').objectStore('photos').getAll(); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); }
+async function dbDel(id) { const db = await pdb(); return new Promise((res, rej) => { const tx = db.transaction('photos', 'readwrite'); tx.objectStore('photos').delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function dbClear() { const db = await pdb(); return new Promise((res, rej) => { const tx = db.transaction('photos', 'readwrite'); tx.objectStore('photos').clear(); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+
+async function refreshPhotoBadge() {
+  try { const all = await dbAll(); const b = $('photoBadge'); if (all.length) { b.style.display = ''; b.textContent = all.length; } else b.style.display = 'none'; }
+  catch (e) { /* IndexedDB unavailable */ }
+}
+
+/* ---- in-app camera ---- */
+let camStream = null, camPubIndex = null, camFacing = 'environment';
+
+window.openCamera = function (i) {
+  camPubIndex = i;
+  $('camTitle').textContent = '📷 ' + PUBS[i].name;
+  $('camStrip').innerHTML = '';
+  map.closePopup();
+  $('cameraOverlay').classList.add('active');
+  loadCamThumbs(i);
+  startCam();
+};
+
+async function startCam() {
+  stopCam();
+  const msg = $('camMsg'), vid = $('camVideo');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    vid.style.display = 'none'; msg.style.display = 'flex';
+    msg.textContent = 'No live camera here — tap 📁 to add photos from your device.';
+    return;
+  }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacing }, audio: false });
+    vid.srcObject = camStream; vid.style.display = ''; msg.style.display = 'none';
+    vid.play().catch(() => {});
+  } catch (e) {
+    vid.style.display = 'none'; msg.style.display = 'flex';
+    msg.textContent = 'Camera unavailable (' + e.name + '). Tap 📁 to upload a photo instead.';
+  }
+}
+function stopCam() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
+
+$('shutter').onclick = () => {
+  const vid = $('camVideo');
+  if (!camStream || !vid.videoWidth) { $('camUpload').click(); return; }
+  const c = document.createElement('canvas');
+  c.width = vid.videoWidth; c.height = vid.videoHeight;
+  c.getContext('2d').drawImage(vid, 0, 0);
+  c.toBlob(b => { if (b) savePhotoBlob(b); }, 'image/jpeg', 0.85);
+};
+$('camFlip').onclick = () => { camFacing = camFacing === 'environment' ? 'user' : 'environment'; startCam(); };
+$('camUpload').onchange = async (e) => { for (const f of e.target.files) await savePhotoBlob(f); e.target.value = ''; };
+
+async function savePhotoBlob(blob) {
+  try {
+    await dbAdd({ pubName: PUBS[camPubIndex].name, pubArea: PUBS[camPubIndex].area, ts: Date.now(), blob });
+    const img = document.createElement('img'); img.src = URL.createObjectURL(blob); $('camStrip').prepend(img);
+    refreshPhotoBadge();
+  } catch (e) { alert('Could not save photo — your browser may be blocking storage in private mode.'); }
+}
+async function loadCamThumbs(i) {
+  try {
+    const mine = (await dbAll()).filter(p => p.pubName === PUBS[i].name).sort((a, b) => b.ts - a.ts);
+    const strip = $('camStrip'); strip.innerHTML = '';
+    mine.forEach(p => { const img = document.createElement('img'); img.src = URL.createObjectURL(p.blob); strip.appendChild(img); });
+  } catch (e) {}
+}
+function closeCamera() { stopCam(); $('cameraOverlay').classList.remove('active'); }
+$('camClose').onclick = closeCamera;
+$('camDone').onclick = closeCamera;
+
+/* ---- photos gallery ---- */
+$('photosBtn').onclick = openPhotos;
+$('photosClose').onclick = () => $('photosOverlay').classList.remove('active');
+
+async function openPhotos() {
+  let all = [];
+  try { all = (await dbAll()).sort((a, b) => b.ts - a.ts); } catch (e) {}
+  $('photosCount').textContent = all.length + (all.length === 1 ? ' photo' : ' photos');
+  const g = $('photosGallery'); g.innerHTML = '';
+  if (!all.length) {
+    $('photosEmpty').style.display = 'block'; $('clearPhotos').style.display = 'none';
+  } else {
+    $('photosEmpty').style.display = 'none'; $('clearPhotos').style.display = 'block';
+    const groups = {};
+    all.forEach(p => { (groups[p.pubName] = groups[p.pubName] || []).push(p); });
+    Object.keys(groups).forEach(name => {
+      const photos = groups[name];
+      const wrap = document.createElement('div'); wrap.className = 'ph-group';
+      wrap.innerHTML = `<h3><span>${name}</span><span class="c">${photos.length} 📷</span></h3>`;
+      const grid = document.createElement('div'); grid.className = 'ph-grid';
+      photos.forEach(p => { const url = URL.createObjectURL(p.blob); const img = document.createElement('img'); img.src = url; img.onclick = () => openLightbox(p, url); grid.appendChild(img); });
+      wrap.appendChild(grid); g.appendChild(wrap);
+    });
+  }
+  $('photosOverlay').classList.add('active');
+}
+$('clearPhotos').onclick = async () => {
+  if (confirm('Delete ALL photos from this night? This cannot be undone.')) { await dbClear(); refreshPhotoBadge(); openPhotos(); }
+};
+
+/* ---- lightbox ---- */
+function openLightbox(rec, url) {
+  $('lbImg').src = url;
+  $('lbCap').textContent = `${rec.pubName} · ${new Date(rec.ts).toLocaleString()}`;
+  const dl = $('lbDownload'); dl.href = url; dl.download = rec.pubName.replace(/[^\w]+/g, '_') + '_' + rec.ts + '.jpg';
+  $('lbDelete').onclick = async () => { await dbDel(rec.id); refreshPhotoBadge(); $('lightbox').classList.remove('active'); openPhotos(); };
+  $('lightbox').classList.add('active');
+}
+$('lbClose').onclick = () => $('lightbox').classList.remove('active');
+
+refreshPhotoBadge();
 
 /* ===================== QUIZ ENGINE ===================== */
 let quiz = null;
