@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Tipsy Quizmaster — Pub Trivia</title>
+<style>
+  :root {
+    --bg: #1a0f08;
+    --bg2: #2a1810;
+    --panel: #2e1d12;
+    --panel-light: #3d2818;
+    --gold: #e0a458;
+    --gold-bright: #f5c878;
+    --cream: #f4e8d0;
+    --green: #4caf6d;
+    --red: #d2553f;
+    --blue: #5a8fc7;
+    --purple: #9d6bb5;
+    --shadow: rgba(0,0,0,0.4);
+    --border: #5a3d24;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background:
+      radial-gradient(circle at 20% 10%, #3a2415 0%, transparent 50%),
+      radial-gradient(circle at 80% 90%, #2a1810 0%, transparent 50%),
+      var(--bg);
+    color: var(--cream);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    line-height: 1.5;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 760px;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 20px 60px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
+    overflow: hidden;
+  }
+
+  .header {
+    text-align: center;
+    padding: 28px 24px 20px;
+    background: linear-gradient(180deg, var(--panel-light), var(--panel));
+    border-bottom: 2px solid var(--border);
+    position: relative;
+  }
+
+  .header .logo { font-size: 44px; line-height: 1; }
+  .header h1 {
+    font-size: 30px;
+    color: var(--gold-bright);
+    letter-spacing: 1px;
+    margin-top: 6px;
+    text-shadow: 0 2px 4px var(--shadow);
+  }
+  .header .tagline {
+    color: var(--gold);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-top: 4px;
+    opacity: 0.8;
+  }
+
+  .body { padding: 28px 28px 34px; }
+
+  .screen { display: none; animation: fade 0.35s ease; }
+  .screen.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  h2.section-title {
+    font-size: 20px;
+    color: var(--gold-bright);
+    margin-bottom: 6px;
+  }
+  p.section-sub { color: var(--cream); opacity: 0.65; font-size: 14px; margin-bottom: 22px; }
+
+  label.field-label {
+    display: block;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--gold);
+    margin-bottom: 10px;
+    margin-top: 22px;
+  }
+
+  /* Teams */
+  .team-list { display: flex; flex-direction: column; gap: 10px; }
+  .team-row { display: flex; gap: 10px; align-items: center; }
+  .team-chip {
+    width: 14px; height: 38px; border-radius: 5px; flex-shrink: 0;
+  }
+  input.text-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    color: var(--cream);
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  input.text-input:focus { outline: none; border-color: var(--gold); }
+
+  .icon-btn {
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    color: var(--cream);
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    font-size: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .icon-btn:hover { border-color: var(--red); color: var(--red); }
+  .add-team-btn {
+    margin-top: 12px;
+    background: transparent;
+    border: 1.5px dashed var(--border);
+    color: var(--gold);
+    padding: 11px;
+    width: 100%;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .add-team-btn:hover { border-color: var(--gold); background: rgba(224,164,88,0.08); }
+  .add-team-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Category grid */
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .cat-card {
+    background: var(--bg2);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 14px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.18s;
+    user-select: none;
+  }
+  .cat-card:hover { transform: translateY(-2px); border-color: var(--gold); }
+  .cat-card.selected {
+    border-color: var(--gold-bright);
+    background: linear-gradient(180deg, var(--panel-light), var(--bg2));
+    box-shadow: 0 0 0 1px var(--gold-bright), 0 6px 18px var(--shadow);
+  }
+  .cat-card .emoji { font-size: 30px; }
+  .cat-card .name { margin-top: 6px; font-weight: 600; font-size: 14px; }
+  .cat-card .check { color: var(--gold-bright); font-size: 13px; height: 16px; margin-top: 2px; opacity: 0; }
+  .cat-card.selected .check { opacity: 1; }
+
+  /* Settings row */
+  .settings-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+  .seg-group { display: inline-flex; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg-group button {
+    background: transparent; border: none; color: var(--cream);
+    padding: 9px 16px; cursor: pointer; font-size: 14px; font-family: inherit; transition: all 0.15s;
+  }
+  .seg-group button.on { background: var(--gold); color: #3a2415; font-weight: 700; }
+
+  /* Buttons */
+  .btn {
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color: #3a2415;
+    border: none;
+    padding: 15px 28px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 28px;
+    box-shadow: 0 6px 16px rgba(224,164,88,0.25);
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(224,164,88,0.35); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn.ghost {
+    background: transparent; border: 1.5px solid var(--border); color: var(--gold);
+    box-shadow: none;
+  }
+  .btn.ghost:hover { border-color: var(--gold); background: rgba(224,164,88,0.06); }
+
+  /* Quiz */
+  .quiz-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .quiz-meta { font-size: 13px; color: var(--gold); text-transform: uppercase; letter-spacing: 1.5px; }
+  .progress-track { height: 6px; background: var(--bg2); border-radius: 4px; margin: 14px 0 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-bright)); width: 0; transition: width 0.4s; }
+
+  .turn-banner {
+    text-align: center; margin: 16px 0 4px; font-size: 15px; font-weight: 600;
+  }
+  .turn-banner .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+
+  .timer-wrap { display: flex; justify-content: center; margin: 18px 0; }
+  .timer {
+    width: 64px; height: 64px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 800;
+    border: 3px solid var(--gold);
+    color: var(--gold-bright);
+    transition: all 0.3s;
+  }
+  .timer.low { border-color: var(--red); color: var(--red); animation: pulse 0.6s infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+
+  .question-card {
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 22px;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .q-category { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--gold); margin-bottom: 10px; }
+  .q-text { font-size: 21px; font-weight: 600; color: var(--cream); }
+
+  .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .answers { grid-template-columns: 1fr; } .body { padding: 22px 18px 28px; } }
+
+  .answer {
+    background: var(--panel-light);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: left;
+    transition: all 0.15s;
+    font-family: inherit;
+    color: var(--cream);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .answer .key {
+    width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+    background: var(--bg2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: var(--gold);
+  }
+  .answer:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--gold); }
+  .answer:disabled { cursor: default; }
+  .answer.correct { border-color: var(--green); background: rgba(76,175,109,0.18); }
+  .answer.correct .key { background: var(--green); color: #fff; border-color: var(--green); }
+  .answer.wrong { border-color: var(--red); background: rgba(210,85,63,0.18); }
+  .answer.wrong .key { background: var(--red); color: #fff; border-color: var(--red); }
+  .answer.dimmed { opacity: 0.45; }
+
+  .feedback { text-align: center; margin-top: 18px; min-height: 26px; font-weight: 600; font-size: 16px; }
+  .feedback.good { color: var(--green); }
+  .feedback.bad { color: var(--red); }
+
+  /* Scoreboard */
+  .scoreboard { display: flex; flex-direction: column; gap: 8px; margin-top: 22px; }
+  .score-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg2); border: 1.5px solid var(--border);
+    padding: 12px 16px; border-radius: 11px;
+  }
+  .score-row .rank { font-weight: 800; font-size: 18px; color: var(--gold); width: 28px; }
+  .score-row .chip { width: 12px; height: 28px; border-radius: 4px; }
+  .score-row .tname { flex: 1; font-weight: 600; font-size: 16px; }
+  .score-row .pts { font-weight: 800; font-size: 18px; color: var(--gold-bright); }
+  .score-row.leader { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+
+  /* Results */
+  .podium { text-align: center; margin-bottom: 8px; }
+  .podium .trophy { font-size: 64px; }
+  .podium .winner { font-size: 26px; color: var(--gold-bright); font-weight: 800; margin-top: 6px; }
+  .podium .winner-sub { color: var(--cream); opacity: 0.7; }
+
+  .footer-note { text-align: center; font-size: 12px; color: var(--cream); opacity: 0.4; margin-top: 22px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">🍺</div>
+    <h1>The Tipsy Quizmaster</h1>
+    <div class="tagline">Pub Trivia Night</div>
+  </div>
+  <div class="body">
+
+    <!-- SETUP SCREEN -->
+    <section class="screen active" id="screen-setup">
+      <h2 class="section-title">Round up your teams</h2>
+      <p class="section-sub">Add 1–6 teams, pick your categories, then call the round.</p>
+
+      <label class="field-label">Teams</label>
+      <div class="team-list" id="teamList"></div>
+      <button class="add-team-btn" id="addTeamBtn">+ Add another team</button>
+
+      <label class="field-label">Categories</label>
+      <div class="cat-grid" id="catGrid"></div>
+
+      <label class="field-label">Questions per game</label>
+      <div class="settings-row">
+        <div class="seg-group" id="countGroup">
+          <button data-count="5">5</button>
+          <button data-count="10" class="on">10</button>
+          <button data-count="15">15</button>
+          <button data-count="20">20</button>
+        </div>
+      </div>
+
+      <label class="field-label">Time per question</label>
+      <div class="settings-row">
+        <div class="seg-group" id="timerGroup">
+          <button data-time="0">Off</button>
+          <button data-time="15">15s</button>
+          <button data-time="20" class="on">20s</button>
+          <button data-time="30">30s</button>
+        </div>
+      </div>
+
+      <button class="btn" id="startBtn">Start the Quiz 🎯</button>
+      <div class="footer-note">Pass the device between teams — each takes their turn.</div>
+    </section>
+
+    <!-- QUIZ SCREEN -->
+    <section class="screen" id="screen-quiz">
+      <div class="quiz-top">
+        <span class="quiz-meta" id="qProgress">Question 1 / 10</span>
+        <span class="quiz-meta" id="qScoreMini"></span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+      <div class="turn-banner" id="turnBanner"></div>
+      <div class="timer-wrap" id="timerWrap"><div class="timer" id="timer">20</div></div>
+
+      <div class="question-card">
+        <div class="q-category" id="qCategory"></div>
+        <div class="q-text" id="qText"></div>
+      </div>
+
+      <div class="answers" id="answers"></div>
+      <div class="feedback" id="feedback"></div>
+      <button class="btn" id="nextBtn" style="display:none;">Next →</button>
+    </section>
+
+    <!-- RESULTS SCREEN -->
+    <section class="screen" id="screen-results">
+      <div class="podium">
+        <div class="trophy">🏆</div>
+        <div class="winner" id="winnerName"></div>
+        <div class="winner-sub" id="winnerSub"></div>
+      </div>
+      <div class="scoreboard" id="finalBoard"></div>
+      <button class="btn" id="playAgainBtn">Play Again 🔁</button>
+      <button class="btn ghost" id="newTeamsBtn">Change Teams & Settings</button>
+    </section>
+
+  </div>
+</div>
+
+<script>
+/* ============================== DATA ============================== */
+const CATEGORIES = {
+  general:  { name: "General",   emoji: "🧠" },
+  science:  { name: "Science",   emoji: "🔬" },
+  history:  { name: "History",   emoji: "🏛️" },
+  geography:{ name: "Geography", emoji: "🌍" },
+  music:    { name: "Music",     emoji: "🎵" },
+  film:     { name: "Film & TV", emoji: "🎬" },
+  sport:    { name: "Sport",     emoji: "⚽" },
+  food:     { name: "Food & Drink", emoji: "🍷" },
+};
+
+// answers[0] is always the correct answer; they get shuffled at runtime.
+const QUESTIONS = [
+  // GENERAL
+  { cat:"general", q:"How many sides does a hexagon have?", a:["Six","Five","Seven","Eight"] },
+  { cat:"general", q:"What is the most spoken native language in the world?", a:["Mandarin Chinese","English","Spanish","Hindi"] },
+  { cat:"general", q:"What does 'www' stand for in a web address?", a:["World Wide Web","Web World Wide","Wide World Web","World Web Wide"] },
+  { cat:"general", q:"Which planet is known as the Red Planet?", a:["Mars","Venus","Jupiter","Mercury"] },
+  { cat:"general", q:"How many colours are in a rainbow?", a:["Seven","Five","Six","Eight"] },
+  { cat:"general", q:"What is the currency of Japan?", a:["Yen","Won","Yuan","Ringgit"] },
+  { cat:"general", q:"Roman numeral 'L' represents which number?", a:["50","5","100","500"] },
+  { cat:"general", q:"What is the tallest animal in the world?", a:["Giraffe","Elephant","Ostrich","Horse"] },
+
+  // SCIENCE
+  { cat:"science", q:"What is the chemical symbol for gold?", a:["Au","Gd","Go","Ag"] },
+  { cat:"science", q:"How many bones are in the adult human body?", a:["206","201","210","196"] },
+  { cat:"science", q:"What gas do plants absorb from the atmosphere?", a:["Carbon dioxide","Oxygen","Nitrogen","Hydrogen"] },
+  { cat:"science", q:"What is the hardest natural substance on Earth?", a:["Diamond","Quartz","Titanium","Granite"] },
+  { cat:"science", q:"What is the speed of light approximately?", a:["300,000 km/s","150,000 km/s","1,000 km/s","30,000 km/s"] },
+  { cat:"science", q:"Which blood type is the universal donor?", a:["O negative","AB positive","A positive","B negative"] },
+  { cat:"science", q:"What planet has the most moons?", a:["Saturn","Jupiter","Neptune","Uranus"] },
+  { cat:"science", q:"What is H2O more commonly known as?", a:["Water","Salt","Hydrogen peroxide","Ammonia"] },
+
+  // HISTORY
+  { cat:"history", q:"In which year did World War II end?", a:["1945","1944","1939","1948"] },
+  { cat:"history", q:"Who was the first President of the United States?", a:["George Washington","Thomas Jefferson","Abraham Lincoln","John Adams"] },
+  { cat:"history", q:"The Great Wall is located in which country?", a:["China","Japan","India","Mongolia"] },
+  { cat:"history", q:"Which ancient civilization built the pyramids of Giza?", a:["Egyptians","Romans","Greeks","Mayans"] },
+  { cat:"history", q:"Who painted the Mona Lisa?", a:["Leonardo da Vinci","Michelangelo","Raphael","Donatello"] },
+  { cat:"history", q:"In which year did the Titanic sink?", a:["1912","1905","1920","1898"] },
+  { cat:"history", q:"Who was the British PM during most of World War II?", a:["Winston Churchill","Neville Chamberlain","Clement Attlee","Tony Blair"] },
+  { cat:"history", q:"The Renaissance began in which country?", a:["Italy","France","England","Spain"] },
+
+  // GEOGRAPHY
+  { cat:"geography", q:"What is the capital of Australia?", a:["Canberra","Sydney","Melbourne","Perth"] },
+  { cat:"geography", q:"Which is the longest river in the world?", a:["Nile","Amazon","Yangtze","Mississippi"] },
+  { cat:"geography", q:"How many continents are there?", a:["Seven","Six","Five","Eight"] },
+  { cat:"geography", q:"Mount Everest sits on the border of Nepal and which country?", a:["China","India","Bhutan","Pakistan"] },
+  { cat:"geography", q:"What is the smallest country in the world?", a:["Vatican City","Monaco","Nauru","San Marino"] },
+  { cat:"geography", q:"Which ocean is the largest?", a:["Pacific","Atlantic","Indian","Arctic"] },
+  { cat:"geography", q:"What is the capital of Canada?", a:["Ottawa","Toronto","Vancouver","Montreal"] },
+  { cat:"geography", q:"The Sahara Desert is on which continent?", a:["Africa","Asia","Australia","South America"] },
+
+  // MUSIC
+  { cat:"music", q:"Which band released the album 'Abbey Road'?", a:["The Beatles","The Rolling Stones","Led Zeppelin","The Who"] },
+  { cat:"music", q:"How many strings does a standard guitar have?", a:["Six","Four","Five","Seven"] },
+  { cat:"music", q:"Who is known as the 'King of Pop'?", a:["Michael Jackson","Elvis Presley","Prince","Freddie Mercury"] },
+  { cat:"music", q:"Which instrument has 88 keys?", a:["Piano","Organ","Accordion","Harpsichord"] },
+  { cat:"music", q:"'Bohemian Rhapsody' was a hit for which band?", a:["Queen","The Eagles","Pink Floyd","Genesis"] },
+  { cat:"music", q:"Adele's album named after her age '21' followed which album?", a:["19","18","25","30"] },
+  { cat:"music", q:"Which country did the band ABBA come from?", a:["Sweden","Norway","Denmark","Finland"] },
+  { cat:"music", q:"What does 'forte' mean in music?", a:["Loud","Soft","Fast","Slow"] },
+
+  // FILM & TV
+  { cat:"film", q:"Who directed the movie 'Jaws'?", a:["Steven Spielberg","George Lucas","Martin Scorsese","Ridley Scott"] },
+  { cat:"film", q:"In 'The Lion King', what is the name of the lion cub?", a:["Simba","Nala","Mufasa","Scar"] },
+  { cat:"film", q:"Which film features a character named Forrest Gump?", a:["Forrest Gump","Cast Away","Big","Philadelphia"] },
+  { cat:"film", q:"The highest-grossing wizard film franchise features which character?", a:["Harry Potter","Gandalf","Merlin","Dr. Strange"] },
+  { cat:"film", q:"In 'Friends', what is the name of Ross's pet monkey?", a:["Marcel","Mr. Bigglesworth","Caesar","Coco"] },
+  { cat:"film", q:"Which actor played Iron Man in the Marvel films?", a:["Robert Downey Jr.","Chris Evans","Chris Hemsworth","Mark Ruffalo"] },
+  { cat:"film", q:"What colour is the matrix code in 'The Matrix'?", a:["Green","Blue","Red","White"] },
+  { cat:"film", q:"Which animated film features a clownfish named Nemo?", a:["Finding Nemo","Shark Tale","The Little Mermaid","Moana"] },
+
+  // SPORT
+  { cat:"sport", q:"How many players are on a soccer team on the field?", a:["Eleven","Ten","Twelve","Nine"] },
+  { cat:"sport", q:"In which sport would you perform a 'slam dunk'?", a:["Basketball","Volleyball","Tennis","Cricket"] },
+  { cat:"sport", q:"How often are the Summer Olympic Games held?", a:["Every 4 years","Every 2 years","Every 5 years","Every 3 years"] },
+  { cat:"sport", q:"What is the maximum break in snooker?", a:["147","180","155","100"] },
+  { cat:"sport", q:"Which country has won the most FIFA World Cups?", a:["Brazil","Germany","Italy","Argentina"] },
+  { cat:"sport", q:"In tennis, what is a score of zero called?", a:["Love","Nil","Duck","Blank"] },
+  { cat:"sport", q:"How many rings are on the Olympic flag?", a:["Five","Four","Six","Seven"] },
+  { cat:"sport", q:"In golf, what is one stroke under par called?", a:["Birdie","Eagle","Bogey","Albatross"] },
+
+  // FOOD & DRINK
+  { cat:"food", q:"What is the main ingredient in guacamole?", a:["Avocado","Tomato","Pepper","Onion"] },
+  { cat:"food", q:"Which fruit is traditionally used to make wine?", a:["Grapes","Apples","Berries","Plums"] },
+  { cat:"food", q:"What spice is derived from the Crocus flower?", a:["Saffron","Turmeric","Paprika","Cumin"] },
+  { cat:"food", q:"Sushi originated in which country?", a:["Japan","China","Korea","Thailand"] },
+  { cat:"food", q:"What type of pastry is used to make profiteroles?", a:["Choux","Puff","Filo","Shortcrust"] },
+  { cat:"food", q:"Which nut is used to make marzipan?", a:["Almond","Walnut","Hazelnut","Cashew"] },
+  { cat:"food", q:"What is the main alcoholic ingredient in a mojito?", a:["Rum","Vodka","Gin","Tequila"] },
+  { cat:"food", q:"Parmesan cheese originates from which country?", a:["Italy","France","Switzerland","Greece"] },
+];
+
+const TEAM_COLORS = ["#d2553f","#5a8fc7","#4caf6d","#9d6bb5","#e0a458","#d98cb3"];
+const TEAM_DEFAULTS = ["The Quizzards","Beer Pressure","Les Quizerables","Trivia Newton-Johns","The Smarty Pints","E=MC Hammer"];
+
+/* ============================== STATE ============================== */
+let state = {
+  teams: [],
+  selectedCats: new Set(Object.keys(CATEGORIES)),
+  questionCount: 10,
+  timePerQ: 20,
+  deck: [],
+  current: 0,
+  activeTeam: 0,
+  answered: false,
+  timerId: null,
+  timeLeft: 0,
+};
+
+/* ============================== HELPERS ============================== */
+const $ = (id) => document.getElementById(id);
+function show(screenId) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(screenId).classList.add("active");
+}
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ============================== SETUP: TEAMS ============================== */
+function renderTeams() {
+  const list = $("teamList");
+  list.innerHTML = "";
+  state.teams.forEach((team, i) => {
+    const row = document.createElement("div");
+    row.className = "team-row";
+    row.innerHTML = `
+      <div class="team-chip" style="background:${TEAM_COLORS[i]}"></div>
+      <input class="text-input" type="text" value="${team.name.replace(/"/g,'&quot;')}" maxlength="24" data-i="${i}" placeholder="Team ${i+1}">
+      <button class="icon-btn" data-remove="${i}" ${state.teams.length <= 1 ? "disabled style='opacity:.3;cursor:not-allowed'" : ""}>&times;</button>
+    `;
+    list.appendChild(row);
+  });
+  list.querySelectorAll("input").forEach(inp => {
+    inp.addEventListener("input", e => { state.teams[+e.target.dataset.i].name = e.target.value; });
+  });
+  list.querySelectorAll("[data-remove]").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const i = +e.currentTarget.dataset.remove;
+      if (state.teams.length > 1) { state.teams.splice(i, 1); renderTeams(); }
+    });
+  });
+  $("addTeamBtn").disabled = state.teams.length >= 6;
+}
+
+/* ============================== SETUP: CATEGORIES ============================== */
+function renderCategories() {
+  const grid = $("catGrid");
+  grid.innerHTML = "";
+  Object.entries(CATEGORIES).forEach(([key, c]) => {
+    const card = document.createElement("div");
+    card.className = "cat-card" + (state.selectedCats.has(key) ? " selected" : "");
+    card.innerHTML = `<div class="emoji">${c.emoji}</div><div class="name">${c.name}</div><div class="check">✓ Selected</div>`;
+    card.addEventListener("click", () => {
+      if (state.selectedCats.has(key)) {
+        if (state.selectedCats.size > 1) state.selectedCats.delete(key);
+      } else state.selectedCats.add(key);
+      renderCategories();
+    });
+    grid.appendChild(card);
+  });
+}
+
+/* ============================== SETUP: SEGMENTED CONTROLS ============================== */
+function wireSegGroup(groupId, attr, onPick) {
+  $(groupId).querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $(groupId).querySelectorAll("button").forEach(b => b.classList.remove("on"));
+      btn.classList.add("on");
+      onPick(+btn.dataset[attr]);
+    });
+  });
+}
+
+/* ============================== START GAME ============================== */
+function buildDeck() {
+  const pool = QUESTIONS.filter(q => state.selectedCats.has(q.cat));
+  const picked = shuffle(pool).slice(0, state.questionCount);
+  return picked.map(q => {
+    const correct = q.a[0];
+    const options = shuffle(q.a);
+    return { cat: q.cat, q: q.q, options, correctIndex: options.indexOf(correct) };
+  });
+}
+
+function startGame() {
+  state.teams.forEach((t, i) => { t.score = 0; if (!t.name.trim()) t.name = `Team ${i+1}`; });
+  state.deck = buildDeck();
+  state.current = 0;
+  state.activeTeam = 0;
+  show("screen-quiz");
+  renderQuestion();
+}
+
+/* ============================== QUIZ ============================== */
+function renderQuestion() {
+  state.answered = false;
+  const q = state.deck[state.current];
+  const team = state.teams[state.activeTeam];
+
+  $("qProgress").textContent = `Question ${state.current + 1} / ${state.deck.length}`;
+  $("qScoreMini").textContent = `${team.name}: ${team.score} pts`;
+  $("progressFill").style.width = `${(state.current / state.deck.length) * 100}%`;
+
+  $("turnBanner").innerHTML = `<span class="dot" style="background:${TEAM_COLORS[state.activeTeam]}"></span>${team.name}, you're up!`;
+  $("qCategory").textContent = CATEGORIES[q.cat].name;
+  $("qText").textContent = q.q;
+  $("feedback").textContent = "";
+  $("feedback").className = "feedback";
+  $("nextBtn").style.display = "none";
+
+  const keys = ["A","B","C","D"];
+  const box = $("answers");
+  box.innerHTML = "";
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.className = "answer";
+    btn.innerHTML = `<span class="key">${keys[i]}</span><span>${opt}</span>`;
+    btn.addEventListener("click", () => selectAnswer(i));
+    box.appendChild(btn);
+  });
+
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(state.timerId);
+  const wrap = $("timerWrap");
+  if (!state.timePerQ) { wrap.style.display = "none"; return; }
+  wrap.style.display = "flex";
+  state.timeLeft = state.timePerQ;
+  const el = $("timer");
+  el.textContent = state.timeLeft;
+  el.classList.remove("low");
+  state.timerId = setInterval(() => {
+    state.timeLeft--;
+    el.textContent = state.timeLeft;
+    if (state.timeLeft <= 5) el.classList.add("low");
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timerId);
+      if (!state.answered) selectAnswer(-1); // time out = no answer
+    }
+  }, 1000);
+}
+
+function selectAnswer(idx) {
+  if (state.answered) return;
+  state.answered = true;
+  clearInterval(state.timerId);
+
+  const q = state.deck[state.current];
+  const team = state.teams[state.activeTeam];
+  const buttons = Array.from($("answers").children);
+
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    if (i === q.correctIndex) b.classList.add("correct");
+    else if (i === idx) b.classList.add("wrong");
+    else b.classList.add("dimmed");
+  });
+
+  const fb = $("feedback");
+  if (idx === q.correctIndex) {
+    team.score++;
+    fb.textContent = "✅ Correct! +1 point";
+    fb.className = "feedback good";
+  } else if (idx === -1) {
+    fb.textContent = "⏰ Time's up! No points.";
+    fb.className = "feedback bad";
+  } else {
+    fb.textContent = `❌ Not quite — the answer was ${q.options[q.correctIndex]}.`;
+    fb.className = "feedback bad";
+  }
+  $("qScoreMini").textContent = `${team.name}: ${team.score} pts`;
+
+  const nextBtn = $("nextBtn");
+  nextBtn.style.display = "block";
+  nextBtn.textContent = (state.current + 1 >= state.deck.length) ? "See Results 🏆" : "Next Team →";
+}
+
+function nextQuestion() {
+  state.current++;
+  state.activeTeam = (state.activeTeam + 1) % state.teams.length;
+  if (state.current >= state.deck.length) {
+    showResults();
+  } else {
+    renderQuestion();
+  }
+}
+
+/* ============================== RESULTS ============================== */
+function showResults() {
+  show("screen-results");
+  const ranked = state.teams
+    .map((t, i) => ({ ...t, colorIdx: i }))
+    .sort((a, b) => b.score - a.score);
+
+  const top = ranked[0];
+  const tiedTop = ranked.filter(t => t.score === top.score);
+  if (tiedTop.length > 1) {
+    $("winnerName").textContent = "It's a tie!";
+    $("winnerSub").textContent = tiedTop.map(t => t.name).join(" & ") + ` — ${top.score} pts each`;
+  } else {
+    $("winnerName").textContent = top.name;
+    $("winnerSub").textContent = `Champions with ${top.score} / ${state.deck.length} points`;
+  }
+
+  const board = $("finalBoard");
+  board.innerHTML = "";
+  const medals = ["🥇","🥈","🥉"];
+  ranked.forEach((t, i) => {
+    const row = document.createElement("div");
+    row.className = "score-row" + (t.score === top.score ? " leader" : "");
+    row.innerHTML = `
+      <span class="rank">${medals[i] || (i+1)}</span>
+      <span class="chip" style="background:${TEAM_COLORS[t.colorIdx]}"></span>
+      <span class="tname">${t.name}</span>
+      <span class="pts">${t.score} <span style="font-size:12px;opacity:.6;font-weight:400">/ ${state.deck.length}</span></span>
+    `;
+    board.appendChild(row);
+  });
+}
+
+/* ============================== INIT ============================== */
+function init() {
+  // seed two teams
+  state.teams = [
+    { name: TEAM_DEFAULTS[0], score: 0 },
+    { name: TEAM_DEFAULTS[1], score: 0 },
+  ];
+  renderTeams();
+  renderCategories();
+
+  wireSegGroup("countGroup", "count", v => state.questionCount = v);
+  wireSegGroup("timerGroup", "time", v => state.timePerQ = v);
+
+  $("addTeamBtn").addEventListener("click", () => {
+    if (state.teams.length < 6) {
+      state.teams.push({ name: TEAM_DEFAULTS[state.teams.length] || "", score: 0 });
+      renderTeams();
+    }
+  });
+
+  $("startBtn").addEventListener("click", startGame);
+  $("nextBtn").addEventListener("click", nextQuestion);
+  $("playAgainBtn").addEventListener("click", startGame);
+  $("newTeamsBtn").addEventListener("click", () => show("screen-setup"));
+}
+
+init();
+</script>
+</body>
+</html>
