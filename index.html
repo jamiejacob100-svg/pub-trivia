@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="pubs-data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
     --bg: #1a0f08; --bg2: #2a1810; --panel: #2e1d12; --panel-light: #3d2818;
@@ -429,6 +430,7 @@
       </div>
       <div class="card-body">
         <div class="ph-empty" id="photosEmpty">No photos yet — open a pub and tap <b>📷 Camera</b> to start snapping.</div>
+        <button class="btn" id="downloadAll" style="display:none;margin-top:0;margin-bottom:16px;">⬇ Download All Photos (ZIP)</button>
         <div id="photosGallery"></div>
         <button class="btn ghost" id="clearPhotos" style="display:none;">Clear All Photos 🗑️</button>
       </div>
@@ -1284,9 +1286,9 @@ async function openPhotos() {
   $('photosCount').textContent = all.length + (all.length === 1 ? ' photo' : ' photos');
   const g = $('photosGallery'); g.innerHTML = '';
   if (!all.length) {
-    $('photosEmpty').style.display = 'block'; $('clearPhotos').style.display = 'none';
+    $('photosEmpty').style.display = 'block'; $('clearPhotos').style.display = 'none'; $('downloadAll').style.display = 'none';
   } else {
-    $('photosEmpty').style.display = 'none'; $('clearPhotos').style.display = 'block';
+    $('photosEmpty').style.display = 'none'; $('clearPhotos').style.display = 'block'; $('downloadAll').style.display = 'block';
     const groups = {};
     all.forEach(p => { (groups[p.pubName] = groups[p.pubName] || []).push(p); });
     Object.keys(groups).forEach(name => {
@@ -1302,6 +1304,35 @@ async function openPhotos() {
 }
 $('clearPhotos').onclick = async () => {
   if (confirm('Delete ALL photos from this night? This cannot be undone.')) { await dbClear(); refreshPhotoBadge(); openPhotos(); }
+};
+
+/* ---- download all as a ZIP (folders per pub) ---- */
+$('downloadAll').onclick = async () => {
+  if (typeof JSZip === 'undefined') { alert('Download library failed to load — check your connection and try again.'); return; }
+  const btn = $('downloadAll'); const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Zipping photos…';
+  try {
+    const all = (await dbAll()).sort((a, b) => a.ts - b.ts);
+    const zip = new JSZip();
+    const counts = {};
+    all.forEach(p => {
+      const folder = (p.pubName || 'Pub').replace(/[^\w \-]+/g, '').trim() || 'Pub';
+      counts[folder] = (counts[folder] || 0) + 1;
+      const stamp = new Date(p.ts).toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      zip.folder(folder).file(`${String(counts[folder]).padStart(2, '0')}_${stamp}.jpg`, p.blob);
+    });
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Sydney_Pub_Crawl_Photos_${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) {
+    alert('Could not build the ZIP: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
 };
 
 /* ---- lightbox ---- */
