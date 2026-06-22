@@ -1,0 +1,4 @@
+# Source rules pack (third-party, not part of the app)
+*.pdf
+# Local scratch files
+_*.js

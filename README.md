@@ -13,6 +13,9 @@ An interactive map of **560+ Sydney pubs & bars** — tap a marker, answer that 
 ## 👥 Team mode
 Hit **Teams** to add up to 6 teams and pass the device around. Each round you finish is scored to whoever's turn it is, then play passes to the next team. The top bar shows whose turn it is, and **Scores** opens a live leaderboard.
 
+## ⛳ Pub Golf mode
+Play **Pub Golf** (rules from the Last Night of Freedom pack): **9 pubs = 9 holes**, each with a drink and a **par** (swigs to finish). Sink it in par or fewer; every extra gulp adds a stroke. Penalty strokes for mishaps (spilled drink +1, missed pub +2, fell over +3, caught cheating +5). **Lowest total wins.** Trivia is intertwined — answer the hole's bar-trivia correctly for a **birdie boost (−1 stroke)**. Pick a 9-hole course on the map, add players, and there's a **soft-drink / water option** that scores identically. Please drink responsibly.
+
 ## The pubs
 - **12 featured pubs** — hand-curated with themed topics, blurbs, and used in the crawl routes.
 - **530 more** pulled live from [OpenStreetMap](https://www.openstreetmap.org/) with real, community-mapped coordinates, spanning The Rocks to Newtown, Manly, Coogee, Balmain and beyond.

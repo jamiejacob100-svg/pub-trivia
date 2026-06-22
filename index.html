@@ -200,6 +200,46 @@
   .sb-row .nm { flex: 1; font-weight: 700; }
   .sb-row .pts { font-weight: 800; color: var(--gold-bright); font-size: 17px; }
   .sb-row .pl { font-size: 12px; opacity: .6; margin-left: 8px; }
+
+  /* Pub Golf */
+  .golf-pin { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(180deg,#6fd694,#3a9d63);
+    border: 2px solid #1f3a28; color: #0e2417; font-weight: 800; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(0,0,0,.5); }
+  .note-warn { font-size: 12px; background: rgba(210,85,63,.12); border: 1px solid var(--red);
+    color: #f0b9ac; border-radius: 9px; padding: 9px 12px; margin-bottom: 14px; line-height: 1.4; }
+  .golf-hole-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .golf-hole-head .h { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold); }
+  .golf-hole-head .par { font-size: 13px; color: var(--gold-bright); font-weight: 800; }
+  .drink-card { background: var(--bg2); border: 1.5px solid var(--gold); border-radius: 12px;
+    padding: 14px 16px; margin: 12px 0; text-align: center; }
+  .drink-card .pub { font-size: 13px; color: var(--cream); opacity: .7; }
+  .drink-card .drink { font-size: 20px; font-weight: 800; color: var(--gold-bright); margin-top: 3px; }
+  .drink-card .par-txt { font-size: 13px; color: var(--gold); margin-top: 4px; }
+  .golf-turn { text-align: center; font-weight: 700; margin: 4px 0 10px; }
+  .golf-turn .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .stepper { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 14px 0; }
+  .stepper button { width: 44px; height: 44px; border-radius: 11px; border: 1.5px solid var(--border);
+    background: var(--bg2); color: var(--gold-bright); font-size: 24px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .stepper button:hover { border-color: var(--gold); }
+  .stepper .val { font-size: 34px; font-weight: 800; min-width: 56px; text-align: center; }
+  .stepper .val.under { color: var(--green); } .stepper .val.over { color: var(--red); }
+  .pen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+  .pen-btn { background: var(--panel-light); border: 1.5px solid var(--border); color: var(--cream);
+    border-radius: 10px; padding: 9px 10px; font-size: 13px; cursor: pointer; font-family: inherit; text-align: left; }
+  .pen-btn.on { border-color: var(--red); background: rgba(210,85,63,.18); color: #f0b9ac; }
+  .pen-btn .s { float: right; font-weight: 800; opacity: .8; }
+  .soft-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; font-size: 14px; cursor: pointer; }
+  .soft-box { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--border); background: var(--bg2);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--green); }
+  .soft-box.on { border-color: var(--green); }
+  .scorecard { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .scorecard th, .scorecard td { padding: 7px 6px; text-align: center; border-bottom: 1px solid var(--border); }
+  .scorecard th { color: var(--gold); font-size: 11px; text-transform: uppercase; }
+  .scorecard td.nm { text-align: left; font-weight: 700; white-space: nowrap; }
+  .scorecard td.tot { font-weight: 800; color: var(--gold-bright); }
+  .scorecard tr.par-row td { color: var(--gold); opacity: .75; font-style: italic; border-bottom: 2px solid var(--border); }
+  .scorecard tr.lead td { background: rgba(224,164,88,.12); }
+  .sc-wrap { overflow-x: auto; margin: 4px 0 6px; }
 </style>
 </head>
 <body>
@@ -221,6 +261,7 @@
     <div class="pill turn-pill" id="turnPill" style="display:none;"></div>
     <div class="pill" id="progressPill">0 cleared</div>
     <button class="crawl-btn" id="teamsBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">👥 Teams</button>
+    <button class="crawl-btn" id="golfBtn" style="background:var(--bg2);color:#8fe0aa;border:1.5px solid var(--green);">⛳ Pub Golf</button>
     <button class="crawl-btn" id="crawlBtn">🍻 Pub Crawl</button>
   </div>
 
@@ -260,6 +301,64 @@
           <div id="scoreList"></div>
           <button class="btn" id="editTeams">Edit Teams ✎</button>
           <button class="btn ghost" id="endTeams">End Team Mode</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pub Golf overlay -->
+  <div class="overlay" id="golfOverlay">
+    <div class="card">
+      <div class="card-head">
+        <div class="eyebrow" id="golfEyebrow">9 holes · lowest score wins</div>
+        <div class="title" id="golfTitle">⛳ Pub Golf</div>
+        <button class="close-x" id="golfClose">&times;</button>
+      </div>
+      <div class="card-body">
+        <!-- setup -->
+        <div id="golfSetup">
+          <div class="note-warn">🍺 <b>Drink responsibly.</b> Know your limits, pace yourself, line your stomach, and never drink &amp; drive. Switch on the soft-drink option to play with water or soft drinks — it scores exactly the same.</div>
+          <p style="font-size:13px;opacity:.75;margin-bottom:12px;">Pick a 9-hole course. Each hole is a real pub with a drink and a <b>par</b> (swigs to finish). Sink it in par or fewer; every extra gulp is +1 stroke. Answer the hole's trivia for a <b>birdie boost (−1)</b>.</p>
+          <label class="field-label" style="color:var(--gold);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">Players</label>
+          <div id="golfPlayers"></div>
+          <button class="add-row" id="golfAddPlayer">+ Add player</button>
+          <label class="field-label" style="color:var(--gold);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;display:block;margin:18px 0 8px;">Course</label>
+          <div id="golfCourses"></div>
+          <div class="soft-row" id="softToggle"><div class="soft-box" id="softBox"></div><span>Soft-drink / water option (same scoring)</span></div>
+          <button class="btn" id="teeOff">Tee Off ⛳</button>
+        </div>
+        <!-- play -->
+        <div id="golfPlay" style="display:none;">
+          <div class="golf-hole-head"><span class="h" id="golfHoleNo">Hole 1 / 9</span><span class="par" id="golfPar">Par 4</span></div>
+          <div class="ptrack"><div class="pfill" id="golfFill"></div></div>
+          <div class="drink-card">
+            <div class="pub" id="golfPub"></div>
+            <div class="drink" id="golfDrink"></div>
+            <div class="par-txt" id="golfParTxt"></div>
+          </div>
+          <div class="golf-turn" id="golfTurn"></div>
+          <div id="golfTrivia">
+            <div class="qtext" id="golfQ" style="font-size:16px;margin:6px 0 12px;"></div>
+            <div class="answers" id="golfAnswers"></div>
+            <div class="feedback" id="golfFb" style="margin-top:12px;"></div>
+          </div>
+          <label class="field-label" style="color:var(--gold);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;display:block;margin:16px 0 0;text-align:center;">Swigs it took you</label>
+          <div class="stepper">
+            <button id="swigMinus">−</button>
+            <div class="val" id="swigVal">4</div>
+            <button id="swigPlus">+</button>
+          </div>
+          <label class="field-label" style="color:var(--gold);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;display:block;margin:6px 0 8px;">Penalty strokes</label>
+          <div class="pen-grid" id="penGrid"></div>
+          <button class="btn" id="logHole">Log Hole →</button>
+          <button class="btn ghost" id="viewCard">View Scorecard 📋</button>
+        </div>
+        <!-- scorecard / results -->
+        <div id="golfCard" style="display:none;">
+          <div id="golfWinner" style="text-align:center;margin-bottom:10px;"></div>
+          <div class="sc-wrap"><table class="scorecard" id="scTable"></table></div>
+          <button class="btn" id="golfResume" style="display:none;">Resume Round →</button>
+          <button class="btn ghost" id="golfExit">Exit Pub Golf 🗺️</button>
         </div>
       </div>
     </div>
@@ -758,6 +857,249 @@ $('startTeams').onclick = () => {
 };
 $('editTeams').onclick = () => { setupNames = teams.map(t => t.name); teamMode = false; openTeamOverlay(); };
 $('endTeams').onclick = () => { teamMode = false; teams = []; $('teamOverlay').classList.remove('active'); updateTopbar(); };
+
+/* ===================== PUB GOLF =====================
+   Rules (Last Night of Freedom pub-golf pack): 9 pubs = 9 holes, one drink each,
+   par = swigs expected to finish; extra gulps add strokes; penalty strokes for
+   mishaps; lowest total wins. Trivia twist: a correct answer = birdie boost (-1). */
+const GOLF_HOLES = [
+  { drink: 'Pint of lager',           soft: 'Pint of soft drink',  par: 4 },
+  { drink: 'Glass of wine',           soft: 'Glass of juice',      par: 3 },
+  { drink: 'Vodka & mixer',           soft: 'Lemonade',            par: 3 },
+  { drink: 'Pint of cider',           soft: 'Pint of soda water',  par: 4 },
+  { drink: 'Alcopop (WKD / Cruiser)', soft: 'Bottle of iced tea',  par: 3 },
+  { drink: 'Gin & tonic',             soft: 'Tonic water',         par: 2 },
+  { drink: 'Pint of ale',             soft: 'Pint of ginger beer', par: 4 },
+  { drink: 'A shot — hole in one!',   soft: 'A shot of water',     par: 1 },
+  { drink: 'Cocktail of choice',      soft: 'Mocktail of choice',  par: 3 },
+];
+const GOLF_PAR_TOTAL = GOLF_HOLES.reduce((s, h) => s + h.par, 0); // 27
+const GOLF_PENALTIES = [
+  { label: 'Spilled drink', strokes: 1 },
+  { label: 'Missed the pub', strokes: 2 },
+  { label: 'Fell over', strokes: 3 },
+  { label: 'Caught cheating', strokes: 5 },
+];
+const GOLF_COURSES = [
+  { emoji: '🪨', name: 'The Rocks & CBD Nine', holes: [0,12,1,4,3,14,13,2,5] },
+  { emoji: '🌆', name: 'Surry Hills & Darlo Nine', holes: [11,18,19,8,22,20,9,21,10] },
+  { emoji: '🚋', name: 'Inner West & Bays Nine', holes: [23,24,25,26,27,28,15,16,17] },
+  { emoji: '🎲', name: 'Surprise Nine (random)', holes: null }, // chosen at tee-off
+];
+
+let golf = null;
+let golfLine = null;
+let golfNames = ['Player 1', 'Player 2'];
+let golfSoft = false;
+let golfCourseIdx = 0;
+
+function golfPin(n) {
+  return L.divIcon({ className: '', html: `<div class="golf-pin">${n}</div>`,
+    iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28] });
+}
+
+function renderGolfPlayers() {
+  const box = $('golfPlayers'); box.innerHTML = '';
+  golfNames.forEach((nm, i) => {
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    row.innerHTML = `<div class="team-chip" style="background:${TEAM_COLORS[i]}"></div>
+      <input class="team-input" maxlength="22" value="${nm.replace(/"/g,'&quot;')}" placeholder="Player ${i+1}" data-i="${i}">
+      <button class="mini-x" data-rm="${i}" ${golfNames.length<=1?'disabled style="opacity:.3"':''}>&times;</button>`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll('input').forEach(inp => inp.oninput = e => golfNames[+e.target.dataset.i] = e.target.value);
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => {
+    const i = +e.currentTarget.dataset.rm;
+    if (golfNames.length > 1) { golfNames.splice(i, 1); renderGolfPlayers(); }
+  });
+  $('golfAddPlayer').disabled = golfNames.length >= 6;
+}
+
+function renderGolfCourses() {
+  const list = $('golfCourses'); list.innerHTML = '';
+  GOLF_COURSES.forEach((c, idx) => {
+    const el = document.createElement('button');
+    el.className = 'route' + (idx === golfCourseIdx ? '' : '');
+    el.style.borderColor = idx === golfCourseIdx ? 'var(--gold)' : 'var(--border)';
+    el.innerHTML = `<div class="r-emoji">${c.emoji}</div><div>
+      <div class="r-name">${c.name}</div><div class="r-desc">9 holes · par ${GOLF_PAR_TOTAL}</div></div>`;
+    el.onclick = () => { golfCourseIdx = idx; renderGolfCourses(); };
+    list.appendChild(el);
+  });
+}
+
+function openGolf() {
+  if (golf) { showGolfCard(false); $('golfOverlay').classList.add('active'); return; }
+  golfNames = teamMode && teams.length ? teams.map(t => t.name) : golfNames;
+  $('golfSetup').style.display = 'block';
+  $('golfPlay').style.display = 'none';
+  $('golfCard').style.display = 'none';
+  renderGolfPlayers(); renderGolfCourses();
+  $('softBox').classList.toggle('on', golfSoft);
+  $('softBox').textContent = golfSoft ? '✓' : '';
+  $('golfOverlay').classList.add('active');
+}
+
+$('golfBtn').onclick = openGolf;
+$('golfClose').onclick = () => $('golfOverlay').classList.remove('active');
+$('golfAddPlayer').onclick = () => { if (golfNames.length < 6) { golfNames.push('Player ' + (golfNames.length+1)); renderGolfPlayers(); } };
+$('softToggle').onclick = () => { golfSoft = !golfSoft; $('softBox').classList.toggle('on', golfSoft); $('softBox').textContent = golfSoft ? '✓' : ''; };
+
+$('teeOff').onclick = () => {
+  let holes = GOLF_COURSES[golfCourseIdx].holes;
+  if (!holes) holes = shuffle(PUBS.map((_, i) => i)).slice(0, 9); // Surprise Nine
+  golf = {
+    course: { ...GOLF_COURSES[golfCourseIdx], holes },
+    players: golfNames.map((nm, i) => ({ name: nm.trim() || `Player ${i+1}`, color: TEAM_COLORS[i], scores: [] })),
+    hole: 0, pIdx: 0,
+  };
+  // map: focus on the 9 holes
+  map.removeLayer(cluster);
+  if (golfLine) map.removeLayer(golfLine);
+  golfLine = L.polyline(holes.map(i => [PUBS[i].lat, PUBS[i].lng]), { color: '#4caf6d', weight: 3, opacity: .75, dashArray: '4 8' }).addTo(map);
+  holes.forEach((pi, n) => markers[pi].setIcon(golfPin(n + 1)));
+  map.fitBounds(golfLine.getBounds(), { padding: [80, 80] });
+  startAttempt();
+};
+
+function startAttempt() {
+  const h = golf.hole, hole = GOLF_HOLES[h], pubIdx = golf.course.holes[h], pub = PUBS[pubIdx];
+  golf.swigs = hole.par; golf.birdie = false; golf.answered = false; golf.pen = [];
+
+  $('golfSetup').style.display = 'none';
+  $('golfCard').style.display = 'none';
+  $('golfPlay').style.display = 'block';
+  $('golfHoleNo').textContent = `Hole ${h + 1} / 9`;
+  $('golfPar').textContent = `Par ${hole.par}`;
+  $('golfFill').style.width = `${(h / 9) * 100}%`;
+  $('golfPub').textContent = `${pub.name} · ${pub.area}`;
+  $('golfDrink').textContent = golfSoft ? hole.soft : hole.drink;
+  $('golfParTxt').textContent = `Par: ${hole.par} swig${hole.par !== 1 ? 's' : ''}`;
+  const pl = golf.players[golf.pIdx];
+  $('golfTurn').innerHTML = `<span class="dot" style="background:${pl.color}"></span>${pl.name}'s tee`;
+
+  // trivia twist
+  const t = TOPICS[pub.topic];
+  const item = shuffle(t.qs)[0];
+  const options = shuffle(item.a);
+  golf.triviaCorrect = options.indexOf(item.a[0]);
+  $('golfQ').textContent = `🧠 ${t.emoji} ${item.q}`;
+  const keys = ['A','B','C','D'];
+  const box = $('golfAnswers'); box.innerHTML = '';
+  options.forEach((opt, i) => {
+    const b = document.createElement('button');
+    b.className = 'answer'; b.innerHTML = `<span class="key">${keys[i]}</span><span>${opt}</span>`;
+    b.onclick = () => golfAnswer(i, options);
+    box.appendChild(b);
+  });
+  $('golfFb').textContent = ''; $('golfFb').className = 'feedback';
+
+  updateSwig();
+  renderPenalties();
+  map.panTo([pub.lat, pub.lng]);
+}
+
+function golfAnswer(idx, options) {
+  if (golf.answered) return;
+  golf.answered = true;
+  Array.from($('golfAnswers').children).forEach((b, i) => {
+    b.disabled = true;
+    if (i === golf.triviaCorrect) b.classList.add('correct');
+    else if (i === idx) b.classList.add('wrong');
+    else b.classList.add('dimmed');
+  });
+  const fb = $('golfFb');
+  if (idx === golf.triviaCorrect) {
+    golf.birdie = true;
+    fb.textContent = '🐦 Birdie boost earned — one stroke off this hole!';
+    fb.className = 'feedback good';
+  } else {
+    fb.textContent = `❌ It was ${options[golf.triviaCorrect]} — no boost this time.`;
+    fb.className = 'feedback bad';
+  }
+  updateSwig();
+}
+
+function updateSwig() {
+  const par = GOLF_HOLES[golf.hole].par;
+  const el = $('swigVal');
+  el.textContent = golf.swigs;
+  el.classList.toggle('under', golf.swigs <= par);
+  el.classList.toggle('over', golf.swigs > par);
+}
+$('swigMinus').onclick = () => { golf.swigs = Math.max(1, golf.swigs - 1); updateSwig(); };
+$('swigPlus').onclick = () => { golf.swigs = Math.min(20, golf.swigs + 1); updateSwig(); };
+
+function renderPenalties() {
+  const grid = $('penGrid'); grid.innerHTML = '';
+  GOLF_PENALTIES.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'pen-btn' + (golf.pen.includes(i) ? ' on' : '');
+    b.innerHTML = `${p.label}<span class="s">+${p.strokes}</span>`;
+    b.onclick = () => { golf.pen = golf.pen.includes(i) ? golf.pen.filter(x => x !== i) : [...golf.pen, i]; renderPenalties(); };
+    grid.appendChild(b);
+  });
+}
+
+$('logHole').onclick = () => {
+  const swigScore = Math.max(1, golf.swigs - (golf.birdie ? 1 : 0));
+  const penTotal = golf.pen.reduce((s, i) => s + GOLF_PENALTIES[i].strokes, 0);
+  golf.players[golf.pIdx].scores[golf.hole] = swigScore + penTotal;
+  golf.pIdx++;
+  if (golf.pIdx >= golf.players.length) { golf.pIdx = 0; golf.hole++; }
+  if (golf.hole >= 9) showGolfCard(true);
+  else startAttempt();
+};
+
+$('viewCard').onclick = () => showGolfCard(false);
+
+function showGolfCard(final) {
+  $('golfSetup').style.display = 'none';
+  $('golfPlay').style.display = 'none';
+  $('golfCard').style.display = 'block';
+
+  const totals = golf.players.map(p => p.scores.reduce((s, v) => s + (v || 0), 0));
+  const minTotal = Math.min(...totals);
+  let head = '<thead><tr><th class="nm">Player</th>';
+  for (let i = 1; i <= 9; i++) head += `<th>${i}</th>`;
+  head += '<th>Tot</th></tr></thead>';
+  let body = '<tbody>';
+  body += '<tr class="par-row"><td class="nm">Par</td>' + GOLF_HOLES.map(h => `<td>${h.par}</td>`).join('') + `<td>${GOLF_PAR_TOTAL}</td></tr>`;
+  golf.players.forEach((p, pi) => {
+    const lead = final && totals[pi] === minTotal;
+    body += `<tr class="${lead ? 'lead' : ''}"><td class="nm"><span style="color:${p.color}">●</span> ${p.name}</td>`;
+    for (let h = 0; h < 9; h++) body += `<td>${p.scores[h] != null ? p.scores[h] : '·'}</td>`;
+    body += `<td class="tot">${totals[pi]}</td></tr>`;
+  });
+  body += '</tbody>';
+  $('scTable').innerHTML = head + body;
+
+  if (final) {
+    const winners = golf.players.filter((_, i) => totals[i] === minTotal).map(p => p.name);
+    const vsPar = minTotal - GOLF_PAR_TOTAL;
+    const parTxt = vsPar === 0 ? 'level par' : vsPar < 0 ? `${-vsPar} under par` : `${vsPar} over par`;
+    $('golfWinner').innerHTML = `<div style="font-size:48px;">🏆</div>
+      <div style="font-size:22px;font-weight:800;color:var(--gold-bright);">${winners.length > 1 ? "It's a tie!" : winners[0] + ' wins!'}</div>
+      <div style="opacity:.75;">${winners.length > 1 ? winners.join(' & ') + ` — ${minTotal} strokes each` : `${minTotal} strokes · ${parTxt}`}</div>`;
+    $('golfResume').style.display = 'none';
+    $('golfExit').textContent = 'New Game / Exit 🗺️';
+  } else {
+    $('golfWinner').innerHTML = `<div style="font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);">Through ${golf.hole} hole${golf.hole !== 1 ? 's' : ''}</div>`;
+    $('golfResume').style.display = 'block';
+    $('golfExit').textContent = 'Quit Round 🗺️';
+  }
+}
+
+$('golfResume').onclick = () => startAttempt();
+$('golfExit').onclick = () => {
+  if (golfLine) { map.removeLayer(golfLine); golfLine = null; }
+  map.addLayer(cluster);
+  refreshMarkers();
+  golf = null;
+  $('golfOverlay').classList.remove('active');
+  map.fitBounds(PUBS.slice(0, CURATED_COUNT).map(p => [p.lat, p.lng]), { padding: [70, 70] });
+};
 
 /* ===================== QUIZ ENGINE ===================== */
 let quiz = null;
