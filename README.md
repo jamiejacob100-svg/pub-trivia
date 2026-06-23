@@ -35,8 +35,11 @@ Pick a route and the pubs unlock in order — clear each round to reach the next
 ## The pubs
 Curated from the [publocation.com.au Sydney list](https://publocation.com.au/pubs/nsw/sydney), each placed at its real location across The Rocks, the CBD, Surry Hills, Darlinghurst, Woolloomooloo, Pyrmont, Chippendale, Newtown, Glebe, Balmain, Paddington, Manly and Coogee.
 
-## Topics
-12 topics, each with 12 questions (shuffled per game): Australian History, Sydney & Landmarks, Music, World Geography, Science & Space, Food & Drink, General Knowledge, Beer/Wine & Cocktails, Arts & Literature, Sport, Animals & Wildlife, Film & TV.
+## Topics & difficulty
+12 topics, each with **18 questions ordered easy → hard**: Australian History, Sydney & Landmarks, Music, World Geography, Science & Space, Food & Drink, General Knowledge, Beer/Wine & Cocktails, Arts & Literature, Sport, Animals & Wildlife, Film & TV.
+
+- **Progressive difficulty** — in Pub Crawl and Pub Golf, the questions get harder at each successive pub/hole (early stops draw the easy questions, later stops the hard ones).
+- **Fresh questions per team** — each pub remembers which questions it has already served, so team 1, team 2 and team 3 each get a completely different set at the same pub (and "Play Again" always serves new questions). The bank recycles only once a pub's whole set is exhausted.
 
 ## Tech
 - Single `index.html`, no build step.
