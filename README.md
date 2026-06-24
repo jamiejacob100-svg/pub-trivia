@@ -37,8 +37,14 @@ Play **Pub Golf** (rules from the Last Night of Freedom pack): **9 pubs = 9 hole
 - **12 featured pubs** — hand-curated with themed topics, blurbs, and used in the crawl routes.
 - **530 more** pulled live from [OpenStreetMap](https://www.openstreetmap.org/) with real, community-mapped coordinates, spanning The Rocks to Newtown, Manly, Coogee, Balmain and beyond.
 
+## 🗺️ Crawl Planner (customiser)
+Open **🍻 Pub Crawl → Build your own crawl** to plan a route in advance: tap pubs on the map to add them in order. The planner draws a numbered path and shows the **total walking distance and time**. You can reorder or remove stops, and then:
+- **Start This Crawl** — play your custom route through the normal crawl engine (pubs unlock in order, trivia, etc.).
+- **🔗 Share** — copies a link that opens your exact planned route on anyone's device (great for organising a group).
+- Your plan auto-saves in the browser, so you can come back to it later.
+
 ## 🍻 Pub Crawl mode
-Pick a route and the pubs unlock in order — clear each round to reach the next pub (🔒 = locked). Routes:
+Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Preset routes:
 - 🪨 **The Rocks Historic Crawl** — 8 pubs
 - 🏙️ **CBD After-Work Circuit** — 4 pubs
 - 🌆 **Surry Hills & Darlo** — 8 pubs

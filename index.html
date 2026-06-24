@@ -315,6 +315,37 @@
   .mp-steps { font-size: 13.5px; line-height: 1.6; }
   .mp-steps li { margin-bottom: 7px; }
   .mp-steps code { background: var(--bg2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+
+  /* Crawl Planner */
+  .planner-panel { position: absolute; z-index: 1100; left: 14px; bottom: 14px; width: 310px;
+    max-width: calc(100vw - 28px); max-height: 64vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 2px solid var(--gold); border-radius: 14px; box-shadow: 0 12px 30px var(--shadow); overflow: hidden; }
+  @media (max-width: 560px) { .planner-panel { left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 56vh; } }
+  .planner-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px;
+    font-weight: 800; color: var(--gold-bright); background: var(--panel-light); border-bottom: 1.5px solid var(--border); }
+  .planner-x { background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; }
+  .planner-x:hover { border-color: var(--red); color: var(--red); }
+  .planner-hint { font-size: 12px; opacity: .7; padding: 8px 14px 4px; }
+  .planner-list { overflow-y: auto; padding: 6px 10px; flex: 1; min-height: 40px; }
+  .plan-row { display: flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 9px; margin-bottom: 6px; }
+  .plan-num { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color: #3a2415; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .plan-name { flex: 1; font-size: 13px; font-weight: 600; line-height: 1.2; }
+  .plan-area { display: block; font-size: 11px; opacity: .6; font-weight: 400; }
+  .plan-acts { display: flex; gap: 3px; flex-shrink: 0; }
+  .plan-acts button { width: 24px; height: 24px; border-radius: 6px; background: var(--panel-light); border: 1px solid var(--border); color: var(--cream); cursor: pointer; font-size: 11px; padding: 0; }
+  .plan-acts button:disabled { opacity: .3; cursor: default; }
+  .plan-acts .rm { color: #f0b9ac; border-color: var(--red); }
+  .planner-stats { padding: 6px 14px; font-size: 13px; font-weight: 700; color: var(--gold); text-align: center; min-height: 8px; }
+  .planner-actions { padding: 8px 12px 12px; border-top: 1.5px solid var(--border); }
+  .planner-actions .btn { margin-top: 0; padding: 11px; }
+  .planner-row2 { display: flex; gap: 8px; margin-top: 8px; }
+  .planner-mini { flex: 1; background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream); border-radius: 9px; padding: 9px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .planner-mini:hover { border-color: var(--gold); }
+  .plan-pin { width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold)); border: 2px solid #3a2415; box-shadow: 0 3px 8px rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; }
+  .plan-pin span { transform: rotate(45deg); font-size: 13px; font-weight: 800; color: #3a2415; }
 </style>
 </head>
 <body>
@@ -343,6 +374,21 @@
   </div>
 
   <div id="map"></div>
+
+  <!-- Crawl Planner floating panel -->
+  <div class="planner-panel" id="plannerPanel" style="display:none;">
+    <div class="planner-head">🗺️ Crawl Planner <button class="planner-x" id="plannerClose">✕</button></div>
+    <div class="planner-hint">Tap pubs on the map to add them to your route, in order.</div>
+    <div class="planner-list" id="plannerList"></div>
+    <div class="planner-stats" id="plannerStats"></div>
+    <div class="planner-actions">
+      <button class="btn" id="plannerStart" disabled>Start This Crawl ▶</button>
+      <div class="planner-row2">
+        <button class="planner-mini" id="plannerShare">🔗 Share</button>
+        <button class="planner-mini" id="plannerClear">🗑 Clear</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Crawl chooser overlay -->
   <div class="overlay" id="crawlOverlay">
@@ -972,13 +1018,18 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 20,
 }).addTo(map);
 
-let mode = 'free';            // 'free' | 'crawl'
+let mode = 'free';            // 'free' | 'crawl' | 'planner'
 let crawlRoute = null;        // active ROUTES entry
 let crawlPos = 0;             // index into crawlRoute.stops
 let routeLine = null;
+let crawlExtraMarkers = [];   // clustered pubs temporarily shown on the route
 const completed = new Set();  // global cleared (free play)
 const bestScore = {};         // pubIndex -> best score
 const markers = [];
+
+/* crawl planner */
+let plannerStops = [];        // pub indices, in chosen order
+let plannerLine = null;
 
 /* team mode */
 let teamMode = false;
@@ -992,7 +1043,7 @@ function shuffle(arr) { const a = arr.slice(); for (let i = a.length-1; i>0; i--
 
 /* ---- per-pub state ---- */
 function pubState(i) {
-  if (mode === 'free') return completed.has(i) ? 'done' : 'idle';
+  if (mode !== 'crawl' || !crawlRoute) return completed.has(i) ? 'done' : 'idle';
   const pos = crawlRoute.stops.indexOf(i);
   if (pos === -1) return 'off';
   if (pos < crawlPos) return 'done';
@@ -1009,9 +1060,23 @@ function pinIcon(state) {
     iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -30],
   });
 }
+function plannerPin(n) {
+  return L.divIcon({ className: '', html: `<div class="plan-pin"><span>${n}</span></div>`,
+    iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28] });
+}
 
 function popupHtml(i) {
-  const p = PUBS[i], t = TOPICS[p.topic], st = pubState(i);
+  const p = PUBS[i], t = TOPICS[p.topic];
+  if (mode === 'planner') {
+    const pos = plannerStops.indexOf(i);
+    const pbtn = pos >= 0
+      ? `<button class="start-btn" style="background:var(--red);color:#fff" onclick="togglePlannerPub(${i})">Remove from crawl ✕</button>`
+      : `<button class="start-btn" onclick="togglePlannerPub(${i})">➕ Add to my crawl</button>`;
+    const pnote = pos >= 0 ? `<div class="pop-note crawl">Stop ${pos + 1} in your plan.</div>` : '';
+    return `<div class="pop-name">${p.name}</div><div class="pop-sub">${p.area}</div>
+      <div class="pop-topic">${t.emoji} ${t.name}</div>${pnote}${pbtn}`;
+  }
+  const st = pubState(i);
   let note = '', btn;
   if (mode === 'crawl') {
     const pos = crawlRoute.stops.indexOf(i);
@@ -1061,17 +1126,22 @@ function refreshMarkers() {
 }
 
 function updateTopbar() {
+  const b = $('crawlBtn');
   if (mode === 'crawl') {
     const done = Math.min(crawlPos, crawlRoute.stops.length);
     $('modeSub').textContent = `${crawlRoute.emoji} ${crawlRoute.name}`;
     $('progressPill').textContent = crawlPos >= crawlRoute.stops.length
       ? '🎉 Crawl complete!'
       : `Stop ${done + 1} / ${crawlRoute.stops.length}`;
-    const b = $('crawlBtn'); b.textContent = '✖ Exit Crawl'; b.classList.add('exit');
+    b.textContent = '✖ Exit Crawl'; b.classList.add('exit');
+  } else if (mode === 'planner') {
+    $('modeSub').textContent = '🗺️ Planning your crawl';
+    $('progressPill').textContent = `${plannerStops.length} pub${plannerStops.length === 1 ? '' : 's'} picked`;
+    b.textContent = '✖ Exit Planner'; b.classList.add('exit');
   } else {
     $('modeSub').textContent = 'Free play · tap any pub';
     $('progressPill').textContent = `${completed.size} cleared`;
-    const b = $('crawlBtn'); b.textContent = '🍻 Pub Crawl'; b.classList.remove('exit');
+    b.textContent = '🍻 Pub Crawl'; b.classList.remove('exit');
   }
   const tp = $('turnPill');
   if (teamMode && teams.length) {
@@ -1088,6 +1158,15 @@ function updateTopbar() {
 function buildRouteList() {
   const list = $('routeList');
   list.innerHTML = '';
+  // Custom planner entry first
+  const custom = document.createElement('button');
+  custom.className = 'route'; custom.style.borderColor = 'var(--gold)';
+  custom.innerHTML = `<div class="r-emoji">🗺️</div><div>
+    <div class="r-name">Build your own crawl</div>
+    <div class="r-desc">Tap pubs on the map to plan your own route.</div>
+    <div class="r-count">Customiser${plannerStops.length ? ' · ' + plannerStops.length + ' saved' : ''}</div></div>`;
+  custom.onclick = () => enterPlanner();
+  list.appendChild(custom);
   ROUTES.forEach((r, idx) => {
     const el = document.createElement('button');
     el.className = 'route';
@@ -1099,14 +1178,21 @@ function buildRouteList() {
   });
 }
 
-function startCrawl(idx) {
+function startCrawl(idx) { startCrawlRoute(ROUTES[idx]); }
+
+function startCrawlRoute(route) {
   mode = 'crawl';
-  crawlRoute = ROUTES[idx];
+  crawlRoute = route;
   crawlPos = 0;
   $('crawlOverlay').classList.remove('active');
+  $('plannerPanel').style.display = 'none';
   map.removeLayer(cluster);   // hide the 500+ extra pubs; focus on the route
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-  routeLine = L.polyline(crawlRoute.stops.map(i => [PUBS[i].lat, PUBS[i].lng]),
+  if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
+  // custom routes can include clustered (extra) pubs — show their markers individually
+  crawlExtraMarkers = [];
+  route.stops.forEach(i => { if (PUBS[i].extra) { markers[i].addTo(map); crawlExtraMarkers.push(i); } });
+  routeLine = L.polyline(route.stops.map(i => [PUBS[i].lat, PUBS[i].lng]),
     { color: '#e0a458', weight: 3, opacity: .7, dashArray: '8 9' }).addTo(map);
   refreshMarkers();
   updateTopbar();
@@ -1116,8 +1202,10 @@ function startCrawl(idx) {
 
 function exitCrawl() {
   mode = 'free';
-  crawlRoute = null;
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  crawlExtraMarkers.forEach(i => map.removeLayer(markers[i]));
+  crawlExtraMarkers = [];
+  crawlRoute = null;
   map.addLayer(cluster);
   refreshMarkers();
   updateTopbar();
@@ -1134,9 +1222,108 @@ function goToActivePub() {
 
 $('crawlBtn').onclick = () => {
   if (mode === 'crawl') exitCrawl();
+  else if (mode === 'planner') exitPlanner();
   else { buildRouteList(); $('crawlOverlay').classList.add('active'); }
 };
 $('crawlClose').onclick = () => $('crawlOverlay').classList.remove('active');
+
+/* ===================== CRAWL PLANNER ===================== */
+function haversineKm(a, b) {
+  const R = 6371, dLat = (b[0] - a[0]) * Math.PI / 180, dLng = (b[1] - a[1]) * Math.PI / 180;
+  const la1 = a[0] * Math.PI / 180, la2 = b[0] * Math.PI / 180;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function plannerDistance() {
+  let d = 0;
+  for (let k = 1; k < plannerStops.length; k++)
+    d += haversineKm([PUBS[plannerStops[k - 1]].lat, PUBS[plannerStops[k - 1]].lng], [PUBS[plannerStops[k]].lat, PUBS[plannerStops[k]].lng]);
+  return d;
+}
+function savePlan() { try { localStorage.setItem('pubcrawl-plan', JSON.stringify(plannerStops)); } catch (e) {} }
+function loadPlan() { try { const s = JSON.parse(localStorage.getItem('pubcrawl-plan')); return Array.isArray(s) ? s.filter(i => i >= 0 && i < PUBS.length) : []; } catch (e) { return []; } }
+
+function enterPlanner(initialStops) {
+  mode = 'planner';
+  plannerStops = (initialStops && initialStops.length) ? initialStops : loadPlan();
+  $('crawlOverlay').classList.remove('active');
+  map.closePopup();
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  $('plannerPanel').style.display = 'flex';
+  refreshPlannerMarkers();
+  renderPlannerPanel();
+  updateTopbar();
+  if (plannerStops.length) map.fitBounds(plannerStops.map(i => [PUBS[i].lat, PUBS[i].lng]), { padding: [90, 90] });
+}
+function exitPlanner() {
+  mode = 'free';
+  if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
+  $('plannerPanel').style.display = 'none';
+  refreshMarkers();
+  updateTopbar();
+  map.closePopup();
+}
+function refreshPlannerMarkers() {
+  PUBS.forEach((p, i) => {
+    const pos = plannerStops.indexOf(i);
+    markers[i].setIcon(pos >= 0 ? plannerPin(pos + 1) : pinIcon('idle'));
+  });
+  if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
+  if (plannerStops.length >= 2)
+    plannerLine = L.polyline(plannerStops.map(i => [PUBS[i].lat, PUBS[i].lng]),
+      { color: '#e0a458', weight: 3, opacity: .8, dashArray: '8 9' }).addTo(map);
+}
+window.togglePlannerPub = function (i) {
+  const pos = plannerStops.indexOf(i);
+  if (pos >= 0) plannerStops.splice(pos, 1); else plannerStops.push(i);
+  map.closePopup();
+  afterPlanChange();
+};
+function movePlan(pos, dir) {
+  const t = pos + dir; if (t < 0 || t >= plannerStops.length) return;
+  [plannerStops[pos], plannerStops[t]] = [plannerStops[t], plannerStops[pos]];
+  afterPlanChange();
+}
+function afterPlanChange() { savePlan(); refreshPlannerMarkers(); renderPlannerPanel(); updateTopbar(); }
+function renderPlannerPanel() {
+  const list = $('plannerList'); list.innerHTML = '';
+  if (!plannerStops.length) {
+    list.innerHTML = '<div class="mp-note" style="text-align:left;padding:6px 4px;">No pubs yet — tap pins on the map to add them.</div>';
+  }
+  plannerStops.forEach((idx, pos) => {
+    const p = PUBS[idx];
+    const row = document.createElement('div'); row.className = 'plan-row';
+    row.innerHTML = `<span class="plan-num">${pos + 1}</span>
+      <span class="plan-name">${escapeHtml(p.name)}<span class="plan-area">${escapeHtml(p.area)}</span></span>
+      <span class="plan-acts">
+        <button data-up="${pos}" ${pos === 0 ? 'disabled' : ''}>▲</button>
+        <button data-down="${pos}" ${pos === plannerStops.length - 1 ? 'disabled' : ''}>▼</button>
+        <button data-rm="${pos}" class="rm">✕</button></span>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => movePlan(+b.dataset.up, -1));
+  list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => movePlan(+b.dataset.down, 1));
+  list.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { plannerStops.splice(+b.dataset.rm, 1); afterPlanChange(); });
+  const km = plannerDistance(), mins = Math.round(km / 5 * 60);
+  $('plannerStats').textContent = plannerStops.length >= 2
+    ? `${plannerStops.length} pubs · ${km.toFixed(1)} km · ~${mins} min walk`
+    : (plannerStops.length === 1 ? '1 pub — add more to build a route' : '');
+  $('plannerStart').disabled = plannerStops.length < 2;
+}
+function startPlannedCrawl() {
+  if (plannerStops.length < 2) { alert('Add at least 2 pubs to start a crawl.'); return; }
+  startCrawlRoute({ emoji: '🗺️', name: 'My Custom Crawl', desc: '', stops: [...plannerStops] });
+}
+function sharePlan() {
+  if (!plannerStops.length) { alert('Add some pubs to your plan first.'); return; }
+  const url = location.origin + location.pathname + '#plan=' + plannerStops.join(',');
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => alert('Share link copied to clipboard! 🔗\nAnyone who opens it gets your planned crawl.'), () => prompt('Copy your crawl link:', url));
+  else prompt('Copy your crawl link:', url);
+}
+$('plannerClose').onclick = exitPlanner;
+$('plannerStart').onclick = startPlannedCrawl;
+$('plannerShare').onclick = sharePlan;
+$('plannerClear').onclick = () => { plannerStops = []; afterPlanChange(); };
 
 /* ===================== TEAM MODE ===================== */
 function renderTeamSetup() {
@@ -1960,6 +2147,14 @@ $('backBtn').onclick = closeQuiz;
 $('closeX').onclick = () => { clearInterval(timerId); $('overlay').classList.remove('active'); };
 
 updateTopbar();
+
+// Open a shared crawl plan from a #plan=1,2,3 link
+(function () {
+  const m = location.hash.match(/plan=([\d,]+)/);
+  if (!m) return;
+  const stops = m[1].split(',').map(Number).filter(i => i >= 0 && i < PUBS.length);
+  if (stops.length) setTimeout(() => enterPlanner(stops), 400);
+})();
 </script>
 </body>
 </html>
