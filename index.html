@@ -13,6 +13,9 @@
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="pubs-data.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
 <style>
   :root {
     --bg: #1a0f08; --bg2: #2a1810; --panel: #2e1d12; --panel-light: #3d2818;
@@ -271,6 +274,47 @@
   .lb-actions button, .lb-actions a { background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
     border-radius: 10px; padding: 10px 16px; font-size: 14px; cursor: pointer; font-family: inherit; text-decoration: none; }
   .lb-actions .del { border-color: var(--red); color: #f0b9ac; }
+
+  /* Multiplayer (Live) */
+  .mp-view { display: none; }
+  .mp-choose { display: grid; gap: 12px; }
+  .mp-big { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left;
+    background: var(--bg2); border: 2px solid var(--border); border-radius: 13px; padding: 18px 16px;
+    cursor: pointer; color: var(--cream); font-family: inherit; transition: all .14s; }
+  .mp-big:hover { border-color: var(--gold); transform: translateY(-2px); }
+  .mp-big .e { font-size: 32px; flex-shrink: 0; }
+  .mp-big .t { font-size: 17px; font-weight: 800; color: var(--gold-bright); }
+  .mp-big .d { font-size: 13px; opacity: .75; margin-top: 2px; }
+  .pin-display { text-align: center; margin: 8px 0 14px; }
+  .pin-display .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--gold); }
+  .pin-code { font-size: 46px; font-weight: 900; letter-spacing: 8px; color: var(--gold-bright); line-height: 1.1; }
+  .player-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; min-height: 22px; }
+  .player-chip { background: var(--panel-light); border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 13px; font-size: 14px; font-weight: 600; }
+  .kahoot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .kahoot-ans { border: none; border-radius: 12px; padding: 20px 14px; font-size: 16px; font-weight: 800; color: #fff;
+    cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 10px; min-height: 68px; text-align: left; }
+  .kahoot-ans .sh { font-size: 20px; flex-shrink: 0; }
+  .k0 { background: #e2453c; } .k1 { background: #1368ce; } .k2 { background: #d89e00; } .k3 { background: #26890c; }
+  .kahoot-ans:disabled { opacity: .5; cursor: default; }
+  .k-count { margin-left: auto; background: rgba(0,0,0,.28); border-radius: 10px; padding: 2px 10px; font-size: 14px; }
+  .lead-row { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 9px 13px; margin-bottom: 7px; }
+  .lead-row .r { font-weight: 800; color: var(--gold); width: 24px; }
+  .lead-row .n { flex: 1; font-weight: 700; }
+  .lead-row .p { font-weight: 800; color: var(--gold-bright); }
+  .mp-status { text-align: center; padding: 22px 10px; }
+  .mp-status .big { font-size: 52px; line-height: 1.1; }
+  .mp-status .lead { font-size: 20px; font-weight: 800; color: var(--gold-bright); margin-top: 6px; }
+  .mp-timer { text-align: center; font-size: 30px; font-weight: 900; color: var(--gold-bright); margin: 8px 0; }
+  .mp-note { font-size: 13px; opacity: .72; text-align: center; margin-top: 10px; line-height: 1.5; }
+  .mp-q { font-size: 21px; font-weight: 800; text-align: center; margin: 6px 0 4px; line-height: 1.3; }
+  .mp-setup-row { margin: 14px 0 4px; }
+  .mp-setup-row label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold); margin-bottom: 6px; }
+  .mp-setup-row select, .mp-setup-row input { width: 100%; background: var(--bg2); border: 1.5px solid var(--border);
+    color: var(--cream); padding: 11px 13px; border-radius: 10px; font-size: 15px; font-family: inherit; }
+  .mp-steps { font-size: 13.5px; line-height: 1.6; }
+  .mp-steps li { margin-bottom: 7px; }
+  .mp-steps code { background: var(--bg2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -281,6 +325,7 @@
       <div class="sub" id="modeSub">Free play · tap any pub</div>
     </div>
     <div class="spacer"></div>
+    <button class="crawl-btn" id="mpBtn" style="background:linear-gradient(180deg,#8b6cff,#5a3fd6);color:#fff;border:none;">🎮 Live</button>
     <label class="pill" style="border-color:var(--border);color:var(--cream);font-weight:600;">⏱
       <select class="ctrl" id="timerSelect" style="border:none;background:transparent;padding:2px 4px;">
         <option value="0">Off</option>
@@ -392,6 +437,123 @@
           <button class="btn" id="golfResume" style="display:none;">Resume Round →</button>
           <button class="btn ghost" id="golfExit">Exit Pub Golf 🗺️</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multiplayer (Live) overlay -->
+  <div class="overlay" id="mpOverlay">
+    <div class="card">
+      <div class="card-head">
+        <div class="eyebrow">Kahoot-style</div>
+        <div class="title">🎮 Live Multiplayer</div>
+        <button class="close-x" id="mpClose">&times;</button>
+      </div>
+      <div class="card-body">
+
+        <!-- choose host/join -->
+        <div class="mp-view mp-choose" id="mp-choose">
+          <button class="mp-big" id="mpHostPick"><span class="e">🎤</span><span><span class="t">Host a Game</span><span class="d">Run the quiz on this screen — players join with a PIN.</span></span></button>
+          <button class="mp-big" id="mpJoinPick"><span class="e">🙋</span><span><span class="t">Join a Game</span><span class="d">Enter the host's PIN and play on your phone.</span></span></button>
+        </div>
+
+        <!-- not configured -->
+        <div class="mp-view" id="mp-notConfig">
+          <p style="font-size:14px;margin-bottom:12px;">Live multiplayer needs a free Firebase project (one-time, ~5 min). Until it's set up, the rest of the app works normally.</p>
+          <ol class="mp-steps">
+            <li>Go to <code>console.firebase.google.com</code> → <b>Add project</b>.</li>
+            <li><b>Build → Realtime Database → Create Database</b> → start in <b>Test mode</b>.</li>
+            <li><b>Project settings → Your apps → Web (&lt;/&gt;)</b>, register an app, copy the config.</li>
+            <li>Paste the values into <code>firebase-config.js</code>, then commit &amp; push.</li>
+          </ol>
+          <p class="mp-note">The web config is safe to commit — access is controlled by Database Rules.</p>
+        </div>
+
+        <!-- host setup -->
+        <div class="mp-view" id="mp-setup">
+          <div class="mp-setup-row"><label>Topic</label><select id="mpTopic"></select></div>
+          <div class="mp-setup-row"><label>Questions</label>
+            <select id="mpCount"><option>5</option><option selected>8</option><option>10</option><option>15</option></select></div>
+          <div class="mp-setup-row"><label>Seconds per question</label>
+            <select id="mpTime"><option>10</option><option value="20" selected>20</option><option>30</option></select></div>
+          <button class="btn" id="mpCreateBtn">Create Game 🎬</button>
+          <button class="btn ghost mp-back">← Back</button>
+        </div>
+
+        <!-- host lobby -->
+        <div class="mp-view" id="mp-hostLobby">
+          <div class="pin-display"><div class="lbl">Game PIN</div><div class="pin-code" id="hostPin">------</div></div>
+          <p class="mp-note">Players: open this site → <b>🎮 Live</b> → <b>Join a Game</b> → enter the PIN.</p>
+          <div style="font-size:13px;color:var(--gold);text-transform:uppercase;letter-spacing:1.5px;margin-top:14px;" id="lobbyCount">0 players</div>
+          <div class="player-chips" id="lobbyPlayers"></div>
+          <button class="btn" id="hostStartBtn" disabled>Start Game ▶</button>
+          <button class="btn ghost" id="hostCancel">Cancel</button>
+        </div>
+
+        <!-- host question -->
+        <div class="mp-view" id="mp-hostQ">
+          <div class="qmeta"><span id="hostQNum">Question 1</span><span id="hostAnsweredCount">0 answered</span></div>
+          <div class="mp-timer" id="hostTimer">20</div>
+          <div class="mp-q" id="hostQText"></div>
+          <div class="kahoot-grid" id="hostAnswers"></div>
+          <button class="btn" id="hostRevealBtn">Reveal Answer →</button>
+        </div>
+
+        <!-- host reveal -->
+        <div class="mp-view" id="mp-hostReveal">
+          <div class="mp-status"><div class="big">📊</div><div class="lead" id="revealAnswer"></div></div>
+          <div id="hostLeader"></div>
+          <button class="btn" id="hostNextBtn">Next Question →</button>
+        </div>
+
+        <!-- host end -->
+        <div class="mp-view" id="mp-hostEnd">
+          <div class="mp-status"><div class="big">🏆</div><div class="lead">Final Results</div></div>
+          <div id="hostFinal"></div>
+          <button class="btn" id="hostEndExit">Done 🗺️</button>
+        </div>
+
+        <!-- player join -->
+        <div class="mp-view" id="mp-joinForm">
+          <div class="mp-setup-row"><label>Game PIN</label><input id="joinPin" inputmode="numeric" maxlength="6" placeholder="6-digit PIN"></div>
+          <div class="mp-setup-row"><label>Your nickname</label><input id="joinName" maxlength="18" placeholder="e.g. Beer Pressure"></div>
+          <button class="btn" id="mpJoinBtn">Join Game 🙋</button>
+          <button class="btn ghost mp-back">← Back</button>
+        </div>
+
+        <!-- player waiting -->
+        <div class="mp-view" id="mp-playerWait">
+          <div class="mp-status"><div class="big">✅</div><div class="lead">You're in, <span id="waitName"></span>!</div></div>
+          <p class="mp-note">Hang tight — waiting for the host to start the game. Keep this screen open.</p>
+        </div>
+
+        <!-- player question -->
+        <div class="mp-view" id="mp-playerQ">
+          <div class="qmeta"><span id="pQNum">Question 1</span><span class="mp-timer" id="pTimer" style="font-size:18px;margin:0;">20</span></div>
+          <div class="mp-q" id="pQText"></div>
+          <div class="kahoot-grid" id="playerAnswers"></div>
+        </div>
+
+        <!-- player locked -->
+        <div class="mp-view" id="mp-playerLocked">
+          <div class="mp-status"><div class="big" id="lockedMsg">Answer locked in!</div></div>
+          <p class="mp-note">Waiting for the round to end…</p>
+        </div>
+
+        <!-- player reveal -->
+        <div class="mp-view" id="mp-playerReveal">
+          <div class="mp-status"><div class="big" id="pResultBig">✅</div><div class="lead" id="pResultMsg"></div>
+            <div class="mp-note" id="pResultScore" style="font-size:15px;opacity:.9;"></div></div>
+          <p class="mp-note">Next question coming up…</p>
+        </div>
+
+        <!-- player end -->
+        <div class="mp-view" id="mp-playerEnd">
+          <div class="mp-status"><div class="big" id="pEndBig">🏆</div><div class="lead" id="pEndMsg"></div>
+            <div class="mp-note" id="pEndScore" style="font-size:16px;opacity:.9;"></div></div>
+          <button class="btn ghost" id="playerExit">Leave Game 🗺️</button>
+        </div>
+
       </div>
     </div>
   </div>
@@ -1436,6 +1598,204 @@ function openLightbox(rec, url) {
 $('lbClose').onclick = () => $('lightbox').classList.remove('active');
 
 refreshPhotoBadge();
+
+/* ===================== MULTIPLAYER (Kahoot-style, Firebase RTDB) ===================== */
+let mp = { inited: false };
+const MP_SHAPES = ['▲', '◆', '●', '■'];
+
+function mpInit() {
+  if (mp.inited) return true;
+  const cfg = window.FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey || !cfg.databaseURL || /PASTE|YOUR_/.test(cfg.apiKey)) return false;
+  try { if (!firebase.apps.length) firebase.initializeApp(cfg); mp.db = firebase.database(); mp.inited = true; return true; }
+  catch (e) { console.error('Firebase init failed', e); return false; }
+}
+function showMp(v) {
+  document.querySelectorAll('#mpOverlay .mp-view').forEach(e => e.style.display = 'none');
+  const el = document.getElementById('mp-' + v); if (el) el.style.display = 'block';
+}
+function escapeHtml(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+$('mpBtn').onclick = () => {
+  $('mpOverlay').classList.add('active');
+  showMp(mpInit() ? 'choose' : 'notConfig');
+};
+$('mpClose').onclick = () => { mpCleanup(); $('mpOverlay').classList.remove('active'); };
+$('mpHostPick').onclick = () => { buildMpTopics(); showMp('setup'); };
+$('mpJoinPick').onclick = () => showMp('joinForm');
+document.querySelectorAll('.mp-back').forEach(b => b.onclick = () => showMp('choose'));
+
+function buildMpTopics() {
+  const sel = $('mpTopic'); if (sel.dataset.filled) return; sel.dataset.filled = '1';
+  sel.innerHTML = '<option value="mixed">🎲 Mixed (all topics)</option>' +
+    Object.entries(TOPICS).map(([k, t]) => `<option value="${k}">${t.emoji} ${t.name}</option>`).join('');
+}
+function buildHostDeck(topicKey, n) {
+  let pool;
+  if (topicKey === 'mixed') { pool = []; Object.values(TOPICS).forEach(t => t.qs.forEach(q => pool.push(q))); pool = shuffle(pool).slice(0, n); }
+  else { const qs = TOPICS[topicKey].qs; pool = shuffle(qs.map((_, k) => k)).slice(0, n).sort((a, b) => a - b).map(k => qs[k]); } // easy → hard
+  return pool.map(q => { const correct = q.a[0], options = shuffle(q.a); return { text: q.q, options, correctIndex: options.indexOf(correct) }; });
+}
+
+/* ---- HOST ---- */
+$('mpCreateBtn').onclick = hostCreate;
+async function hostCreate() {
+  const topic = $('mpTopic').value, total = +$('mpCount').value, durSec = +$('mpTime').value;
+  mp.role = 'host'; mp.duration = durSec * 1000; mp.deck = buildHostDeck(topic, total); mp.qi = -1; mp.players = {};
+  let pin = '';
+  for (let t = 0; t < 6; t++) { pin = '' + (100000 + Math.floor(Math.random() * 900000)); if (!(await mp.db.ref('games/' + pin).once('value')).exists()) break; }
+  mp.pin = pin; mp.ref = mp.db.ref('games/' + pin);
+  await mp.ref.set({ phase: 'lobby', topic, total, qIndex: -1, createdAt: firebase.database.ServerValue.TIMESTAMP });
+  mp.ref.child('players').on('value', s => { mp.players = s.val() || {}; renderLobby(); });
+  mp._unload = () => { try { mp.ref.remove(); } catch (e) {} };
+  window.addEventListener('beforeunload', mp._unload);
+  $('hostPin').textContent = pin;
+  showMp('hostLobby');
+}
+function renderLobby() {
+  const ids = Object.keys(mp.players);
+  $('lobbyCount').textContent = ids.length + (ids.length === 1 ? ' player' : ' players');
+  $('lobbyPlayers').innerHTML = ids.map(id => `<span class="player-chip">${escapeHtml(mp.players[id].name)}</span>`).join('') || '<span class="mp-note">Waiting for players to join…</span>';
+  $('hostStartBtn').disabled = ids.length === 0;
+}
+$('hostCancel').onclick = () => { mpCleanup(); $('mpOverlay').classList.remove('active'); };
+$('hostStartBtn').onclick = () => hostNextQuestion();
+
+async function hostNextQuestion() {
+  mp.qi++;
+  if (mp.qi >= mp.deck.length) return hostEnd();
+  if (mp._ansRef) { mp._ansRef.off(); }
+  const q = mp.deck[mp.qi], startAt = Date.now();
+  await mp.ref.update({ phase: 'question', qIndex: mp.qi,
+    q: { i: mp.qi, text: q.text, options: q.options, total: mp.deck.length, startAt, duration: mp.duration } });
+  $('hostQNum').textContent = `Question ${mp.qi + 1} / ${mp.deck.length}`;
+  $('hostQText').textContent = q.text;
+  const grid = $('hostAnswers'); grid.innerHTML = '';
+  q.options.forEach((opt, i) => { const d = document.createElement('div'); d.className = 'kahoot-ans k' + i;
+    d.innerHTML = `<span class="sh">${MP_SHAPES[i]}</span><span>${escapeHtml(opt)}</span><span class="k-count" id="kc${i}">0</span>`; grid.appendChild(d); });
+  $('hostAnsweredCount').textContent = '0 answered';
+  showMp('hostQ');
+  mp._ansRef = mp.ref.child('ans/' + mp.qi);
+  mp._ansRef.on('value', s => hostTally(s.val() || {}));
+  clearTimeout(mp.qTimer); clearInterval(mp.qTick);
+  let left = Math.round(mp.duration / 1000); $('hostTimer').textContent = left;
+  mp.qTick = setInterval(() => { left--; $('hostTimer').textContent = Math.max(0, left); if (left <= 0) clearInterval(mp.qTick); }, 1000);
+  mp.qTimer = setTimeout(() => hostReveal(), mp.duration + 800);
+}
+function hostTally(ans) {
+  const c = [0, 0, 0, 0]; Object.values(ans).forEach(a => { if (a.c >= 0 && a.c < 4) c[a.c]++; });
+  for (let i = 0; i < 4; i++) { const el = $('kc' + i); if (el) el.textContent = c[i]; }
+  $('hostAnsweredCount').textContent = Object.keys(ans).length + ' answered';
+}
+$('hostRevealBtn').onclick = () => hostReveal();
+async function hostReveal() {
+  clearTimeout(mp.qTimer); clearInterval(mp.qTick); if (mp._ansRef) { mp._ansRef.off(); mp._ansRef = null; }
+  const q = mp.deck[mp.qi];
+  const ans = (await mp.ref.child('ans/' + mp.qi).once('value')).val() || {};
+  const updates = {};
+  Object.keys(ans).forEach(pid => {
+    const a = ans[pid]; let pts = 0;
+    if (a.c === q.correctIndex) { const frac = Math.max(0, 1 - (a.ms / mp.duration)); pts = Math.round(500 + 500 * frac); }
+    const cur = (mp.players[pid] && mp.players[pid].score) || 0;
+    updates['players/' + pid + '/score'] = cur + pts;
+  });
+  updates['reveal/' + mp.qi] = { correct: q.correctIndex };
+  updates['phase'] = 'reveal';
+  await mp.ref.update(updates);
+  $('revealAnswer').innerHTML = `Correct: <b>${MP_SHAPES[q.correctIndex]} ${escapeHtml(q.options[q.correctIndex])}</b>`;
+  renderLeaderboard($('hostLeader'), 8);
+  $('hostNextBtn').textContent = (mp.qi + 1 >= mp.deck.length) ? 'Final Results 🏆' : 'Next Question →';
+  showMp('hostReveal');
+}
+$('hostNextBtn').onclick = () => hostNextQuestion();
+function renderLeaderboard(el, topN) {
+  const arr = Object.keys(mp.players).map(id => ({ name: mp.players[id].name, score: mp.players[id].score || 0 }))
+    .sort((a, b) => b.score - a.score).slice(0, topN);
+  el.innerHTML = arr.map((p, i) => `<div class="lead-row"><span class="r">${i + 1}</span><span class="n">${escapeHtml(p.name)}</span><span class="p">${p.score}</span></div>`).join('') || '<div class="mp-note">No scores yet</div>';
+}
+async function hostEnd() {
+  clearTimeout(mp.qTimer); clearInterval(mp.qTick);
+  await mp.ref.update({ phase: 'ended' });
+  renderLeaderboard($('hostFinal'), 20);
+  showMp('hostEnd');
+}
+$('hostEndExit').onclick = () => { mpCleanup(); $('mpOverlay').classList.remove('active'); };
+
+/* ---- PLAYER ---- */
+$('mpJoinBtn').onclick = playerJoin;
+async function playerJoin() {
+  const pin = ($('joinPin').value || '').trim(), name = ($('joinName').value || '').trim().slice(0, 18);
+  if (!/^\d{6}$/.test(pin)) { alert('Enter the 6-digit game PIN.'); return; }
+  if (!name) { alert('Enter a nickname.'); return; }
+  const gref = mp.db.ref('games/' + pin);
+  const snap = await gref.once('value');
+  if (!snap.exists() || snap.val().phase === 'ended') { alert('No active game with that PIN.'); return; }
+  mp.role = 'player'; mp.pin = pin; mp.ref = gref; mp.myName = name; mp.lastShownQi = -1; mp.reveals = {}; mp.allPlayers = {};
+  const pref = gref.child('players').push({ name, score: 0 }); mp.myId = pref.key;
+  mp._unload = () => { try { pref.remove(); } catch (e) {} };
+  window.addEventListener('beforeunload', mp._unload);
+  gref.child('phase').on('value', s => playerPhase(s.val()));
+  gref.child('q').on('value', s => playerQ(s.val()));
+  gref.child('reveal').on('value', s => mp.reveals = s.val() || {});
+  gref.child('players').on('value', s => mp.allPlayers = s.val() || {});
+  $('waitName').textContent = name;
+  showMp('playerWait');
+}
+function playerPhase(ph) {
+  if (ph === 'reveal') playerShowReveal();
+  else if (ph === 'ended') playerShowEnd();
+  else if (ph === 'lobby') showMp('playerWait');
+}
+function playerQ(q) {
+  if (!q || q.i === mp.lastShownQi) return;
+  mp.lastShownQi = q.i; mp.curQ = q; mp.answered = false; mp.myChoice = -1; mp.qStartLocal = Date.now();
+  $('pQNum').textContent = `Question ${q.i + 1} / ${q.total}`;
+  $('pQText').textContent = q.text;
+  const grid = $('playerAnswers'); grid.innerHTML = '';
+  q.options.forEach((opt, i) => { const b = document.createElement('button'); b.className = 'kahoot-ans k' + i;
+    b.innerHTML = `<span class="sh">${MP_SHAPES[i]}</span><span>${escapeHtml(opt)}</span>`; b.onclick = () => playerAnswer(i); grid.appendChild(b); });
+  clearInterval(mp.pTick); let left = Math.round((q.duration || 20000) / 1000); $('pTimer').textContent = left;
+  mp.pTick = setInterval(() => { left--; $('pTimer').textContent = Math.max(0, left); if (left <= 0) clearInterval(mp.pTick); }, 1000);
+  showMp('playerQ');
+}
+function playerAnswer(choice) {
+  if (mp.answered) return; mp.answered = true; mp.myChoice = choice;
+  const ms = Date.now() - mp.qStartLocal;
+  mp.ref.child('ans/' + mp.curQ.i + '/' + mp.myId).set({ c: choice, ms });
+  $('lockedMsg').innerHTML = `<span style="font-size:42px">${MP_SHAPES[choice]}</span><br>Answer locked in!`;
+  showMp('playerLocked');
+}
+async function playerShowReveal() {
+  clearInterval(mp.pTick);
+  let rev = mp.reveals[mp.lastShownQi];
+  if (!rev) rev = (await mp.ref.child('reveal/' + mp.lastShownQi).once('value')).val() || {};
+  const correct = rev.correct;
+  const right = mp.myChoice === correct && mp.myChoice >= 0;
+  const me = mp.allPlayers[mp.myId] || (await mp.ref.child('players/' + mp.myId).once('value')).val() || { score: 0 };
+  const rank = Object.values(mp.allPlayers).filter(p => (p.score || 0) > (me.score || 0)).length + 1;
+  $('pResultBig').textContent = right ? '✅' : '❌';
+  $('pResultMsg').textContent = right ? 'Correct!' : (mp.myChoice < 0 ? "Time's up!" : 'Not this time');
+  $('pResultScore').textContent = `${me.score || 0} pts · Rank ${rank} of ${Object.keys(mp.allPlayers).length}`;
+  showMp('playerReveal');
+}
+function playerShowEnd() {
+  clearInterval(mp.pTick);
+  const me = mp.allPlayers[mp.myId] || { score: 0 };
+  const ranked = Object.values(mp.allPlayers).sort((a, b) => (b.score || 0) - (a.score || 0));
+  const rank = ranked.findIndex(p => (p.score || 0) === (me.score || 0)) + 1;
+  $('pEndBig').textContent = rank === 1 ? '🏆' : rank <= 3 ? '🥳' : '🍺';
+  $('pEndMsg').textContent = rank === 1 ? 'You won! Drinks are on everyone else.' : `You finished #${rank} of ${ranked.length}`;
+  $('pEndScore').textContent = `${me.score || 0} points`;
+  showMp('playerEnd');
+}
+$('playerExit').onclick = () => { mpCleanup(); $('mpOverlay').classList.remove('active'); };
+
+function mpCleanup() {
+  try { if (mp._unload) { window.removeEventListener('beforeunload', mp._unload); mp._unload(); mp._unload = null; } } catch (e) {}
+  try { if (mp.ref) mp.ref.off(); } catch (e) {}
+  clearTimeout(mp.qTimer); clearInterval(mp.qTick); clearInterval(mp.pTick);
+  mp.role = null; mp.ref = null;
+}
 
 /* ===================== QUIZ ENGINE ===================== */
 let quiz = null;

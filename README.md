@@ -10,6 +10,20 @@ An interactive map of **560+ Sydney pubs & bars** — tap a marker, answer that 
 - Each round is **10 questions** with an optional **per-question timer** (Off / 15 / 20 / 30s).
 - Clear a pub and its pin turns into a ✅. Progress shows in the top bar.
 
+## 🎮 Live multiplayer (Kahoot-style)
+Tap **🎮 Live** in the menu bar to **Host** or **Join** a game across separate phones:
+- **Host** picks a topic, question count and timer, and gets a **6-digit PIN**. The host screen shows the question, a live answer tally, a countdown, and a leaderboard between rounds.
+- **Players** open the same site → **🎮 Live → Join**, enter the PIN and a nickname, and answer on their own phones with Kahoot-style coloured buttons. **Faster correct answers score more** (up to 1000 pts).
+
+### One-time setup (required for Live mode only)
+Live mode needs a free **Firebase Realtime Database** (the rest of the app works without it). Open `firebase-config.js` for step-by-step instructions:
+1. Create a free project at [console.firebase.google.com](https://console.firebase.google.com).
+2. **Build → Realtime Database → Create Database** → start in **Test mode**.
+3. **Project settings → Your apps → Web** → copy the config values.
+4. Paste them into `firebase-config.js`, then `git commit` & `git push`.
+
+Until configured, the **Live** button shows these setup steps and everything else keeps working.
+
 ## 👥 Team mode
 Hit **Teams** to add up to 6 teams and pass the device around. Each round you finish is scored to whoever's turn it is, then play passes to the next team. The top bar shows whose turn it is, and **Scores** opens a live leaderboard.
 
