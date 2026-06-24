@@ -1734,17 +1734,29 @@ async function playerJoin() {
   const pref = gref.child('players').push({ name, score: 0 }); mp.myId = pref.key;
   mp._unload = () => { try { pref.remove(); } catch (e) {} };
   window.addEventListener('beforeunload', mp._unload);
-  gref.child('phase').on('value', s => playerPhase(s.val()));
+  gref.child('phase').on('value', s => { mp.curPhase = s.val(); playerPhase(s.val()); });
   gref.child('q').on('value', s => playerQ(s.val()));
-  gref.child('reveal').on('value', s => mp.reveals = s.val() || {});
+  gref.child('reveal').on('value', s => { mp.reveals = s.val() || {}; maybeReveal(); });
   gref.child('players').on('value', s => mp.allPlayers = s.val() || {});
   $('waitName').textContent = name;
   showMp('playerWait');
 }
 function playerPhase(ph) {
-  if (ph === 'reveal') playerShowReveal();
+  if (ph === 'reveal') maybeReveal();
   else if (ph === 'ended') playerShowEnd();
   else if (ph === 'lobby') showMp('playerWait');
+}
+// Only show the result once BOTH the phase is 'reveal' AND this question's correct
+// answer has actually arrived via the reveal listener — avoids the cache race that
+// made correct answers read as "wrong".
+function maybeReveal() {
+  if (mp.curPhase !== 'reveal') return;
+  const qi = mp.lastShownQi;
+  const rev = (mp.reveals || {})[qi];
+  if (!rev || rev.correct == null) return;
+  if (mp.shownRevealFor === qi) return;
+  mp.shownRevealFor = qi;
+  playerShowReveal(Number(rev.correct));
 }
 function playerQ(q) {
   if (!q || q.i === mp.lastShownQi) return;
@@ -1765,19 +1777,17 @@ function playerAnswer(choice) {
   $('lockedMsg').innerHTML = `<span style="font-size:42px">${MP_SHAPES[choice]}</span><br>Answer locked in!`;
   showMp('playerLocked');
 }
-async function playerShowReveal() {
+async function playerShowReveal(correct) {
   clearInterval(mp.pTick);
   const qi = mp.lastShownQi;
-  // Read authoritative values straight from the DB (avoids stale-listener / type races).
-  const rev = (await mp.ref.child('reveal/' + qi).once('value')).val() || {};
-  const correct = (rev.correct == null) ? -99 : Number(rev.correct);
+  // `correct` is passed in from maybeReveal (guaranteed present). Read my own answer fresh.
   let myC = Number(mp.myChoice);
   const aSnap = await mp.ref.child('ans/' + qi + '/' + mp.myId).once('value');
   if (aSnap.exists() && aSnap.val().c != null) myC = Number(aSnap.val().c);
   const answered = myC >= 0;
-  const right = answered && myC === correct;
+  const right = answered && myC === Number(correct);
   const me = (await mp.ref.child('players/' + mp.myId).once('value')).val() || { score: 0 };
-  const players = (await mp.ref.child('players').once('value')).val() || mp.allPlayers || {};
+  const players = mp.allPlayers || {};
   const total = Object.keys(players).length || 1;
   const rank = Object.values(players).filter(p => (p.score || 0) > (me.score || 0)).length + 1;
   $('pResultBig').textContent = right ? '✅' : '❌';
