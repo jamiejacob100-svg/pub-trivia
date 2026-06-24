@@ -1767,15 +1767,22 @@ function playerAnswer(choice) {
 }
 async function playerShowReveal() {
   clearInterval(mp.pTick);
-  let rev = mp.reveals[mp.lastShownQi];
-  if (!rev) rev = (await mp.ref.child('reveal/' + mp.lastShownQi).once('value')).val() || {};
-  const correct = rev.correct;
-  const right = mp.myChoice === correct && mp.myChoice >= 0;
-  const me = mp.allPlayers[mp.myId] || (await mp.ref.child('players/' + mp.myId).once('value')).val() || { score: 0 };
-  const rank = Object.values(mp.allPlayers).filter(p => (p.score || 0) > (me.score || 0)).length + 1;
+  const qi = mp.lastShownQi;
+  // Read authoritative values straight from the DB (avoids stale-listener / type races).
+  const rev = (await mp.ref.child('reveal/' + qi).once('value')).val() || {};
+  const correct = (rev.correct == null) ? -99 : Number(rev.correct);
+  let myC = Number(mp.myChoice);
+  const aSnap = await mp.ref.child('ans/' + qi + '/' + mp.myId).once('value');
+  if (aSnap.exists() && aSnap.val().c != null) myC = Number(aSnap.val().c);
+  const answered = myC >= 0;
+  const right = answered && myC === correct;
+  const me = (await mp.ref.child('players/' + mp.myId).once('value')).val() || { score: 0 };
+  const players = (await mp.ref.child('players').once('value')).val() || mp.allPlayers || {};
+  const total = Object.keys(players).length || 1;
+  const rank = Object.values(players).filter(p => (p.score || 0) > (me.score || 0)).length + 1;
   $('pResultBig').textContent = right ? '✅' : '❌';
-  $('pResultMsg').textContent = right ? 'Correct!' : (mp.myChoice < 0 ? "Time's up!" : 'Not this time');
-  $('pResultScore').textContent = `${me.score || 0} pts · Rank ${rank} of ${Object.keys(mp.allPlayers).length}`;
+  $('pResultMsg').textContent = right ? 'Correct!' : (!answered ? "Time's up!" : 'Not this time');
+  $('pResultScore').textContent = `${me.score || 0} pts · Rank ${rank} of ${total}`;
   showMp('playerReveal');
 }
 function playerShowEnd() {
