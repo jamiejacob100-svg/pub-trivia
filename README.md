@@ -40,8 +40,9 @@ Play **Pub Golf** (rules from the Last Night of Freedom pack): **9 pubs = 9 hole
 ## 🗺️ Crawl Planner (customiser)
 Open **🍻 Pub Crawl → Build your own crawl** to plan a route in advance: tap pubs on the map to add them in order. The planner draws a numbered path and shows the **total walking distance and time**. You can reorder or remove stops, and then:
 - **Start This Crawl** — play your custom route through the normal crawl engine (pubs unlock in order, trivia, etc.).
+- **💾 Save** — give the crawl a custom name (e.g. "Friday Rocks crawl") and keep it for future use. Saved crawls appear in the **🍻 Pub Crawl** menu, where you can start, ✏️ edit, or 🗑 delete each one.
 - **🔗 Share** — copies a link that opens your exact planned route on anyone's device (great for organising a group).
-- Your plan auto-saves in the browser, so you can come back to it later.
+- The in-progress plan also auto-saves, so you can come back to it later.
 
 ## 🍻 Pub Crawl mode
 Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Preset routes:

@@ -346,6 +346,16 @@
     background: linear-gradient(180deg, var(--gold-bright), var(--gold)); border: 2px solid #3a2415; box-shadow: 0 3px 8px rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; }
   .plan-pin span { transform: rotate(45deg); font-size: 13px; font-weight: 800; color: #3a2415; }
+  .sv-main { flex: 1; cursor: pointer; }
+  .sv-mini { width: 32px; height: 32px; border-radius: 8px; background: var(--bg2); border: 1.5px solid var(--border);
+    color: var(--cream); cursor: pointer; font-size: 14px; flex-shrink: 0; padding: 0; }
+  .sv-mini:hover { border-color: var(--gold); }
+  .sv-del:hover { border-color: var(--red); color: var(--red); }
+  .sv-main { flex: 1; cursor: pointer; }
+  .sv-mini { width: 32px; height: 32px; border-radius: 8px; background: var(--bg2); border: 1.5px solid var(--border);
+    color: var(--cream); cursor: pointer; font-size: 14px; flex-shrink: 0; }
+  .sv-mini:hover { border-color: var(--gold); }
+  .sv-del:hover { border-color: var(--red); color: var(--red); }
 </style>
 </head>
 <body>
@@ -384,6 +394,7 @@
     <div class="planner-actions">
       <button class="btn" id="plannerStart" disabled>Start This Crawl ▶</button>
       <div class="planner-row2">
+        <button class="planner-mini" id="plannerSave">💾 Save</button>
         <button class="planner-mini" id="plannerShare">🔗 Share</button>
         <button class="planner-mini" id="plannerClear">🗑 Clear</button>
       </div>
@@ -1167,6 +1178,21 @@ function buildRouteList() {
     <div class="r-count">Customiser${plannerStops.length ? ' · ' + plannerStops.length + ' saved' : ''}</div></div>`;
   custom.onclick = () => enterPlanner();
   list.appendChild(custom);
+  // saved custom crawls
+  getSavedCrawls().forEach(s => {
+    const el = document.createElement('div'); el.className = 'route'; el.style.cursor = 'default';
+    el.innerHTML = `<div class="r-emoji" style="cursor:pointer">💾</div>
+      <div class="sv-main"><div class="r-name">${escapeHtml(s.name)}</div>
+        <div class="r-desc">${s.stops.length} pubs · your saved crawl</div></div>
+      <button class="sv-mini sv-edit" title="Edit in planner">✏️</button>
+      <button class="sv-mini sv-del" title="Delete">🗑</button>`;
+    const start = () => startCrawlRoute({ emoji: '💾', name: s.name, desc: '', stops: [...s.stops] });
+    el.querySelector('.r-emoji').onclick = start;
+    el.querySelector('.sv-main').onclick = start;
+    el.querySelector('.sv-edit').onclick = () => enterPlanner([...s.stops]);
+    el.querySelector('.sv-del').onclick = () => { if (confirm(`Delete "${s.name}"?`)) { setSavedCrawls(getSavedCrawls().filter(x => x.id !== s.id)); buildRouteList(); } };
+    list.appendChild(el);
+  });
   ROUTES.forEach((r, idx) => {
     const el = document.createElement('button');
     el.className = 'route';
@@ -1324,6 +1350,22 @@ $('plannerClose').onclick = exitPlanner;
 $('plannerStart').onclick = startPlannedCrawl;
 $('plannerShare').onclick = sharePlan;
 $('plannerClear').onclick = () => { plannerStops = []; afterPlanChange(); };
+
+/* named saved crawls */
+function getSavedCrawls() { try { const s = JSON.parse(localStorage.getItem('pubcrawl-saved')); return Array.isArray(s) ? s : []; } catch (e) { return []; } }
+function setSavedCrawls(arr) { try { localStorage.setItem('pubcrawl-saved', JSON.stringify(arr)); } catch (e) {} }
+$('plannerSave').onclick = () => {
+  if (plannerStops.length < 2) { alert('Add at least 2 pubs before saving.'); return; }
+  const name = (prompt('Name this crawl (e.g. "Friday Rocks crawl"):', '') || '').trim();
+  if (!name) return;
+  const saved = getSavedCrawls();
+  const at = saved.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
+  const entry = { id: at >= 0 ? saved[at].id : 'p' + Date.now(), name, stops: [...plannerStops] };
+  if (at >= 0) { if (!confirm(`A crawl named "${name}" already exists. Overwrite it?`)) return; saved[at] = entry; }
+  else saved.push(entry);
+  setSavedCrawls(saved);
+  alert(`Saved "${name}" ✓  — find it under 🍻 Pub Crawl.`);
+};
 
 /* ===================== TEAM MODE ===================== */
 function renderTeamSetup() {
