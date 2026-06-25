@@ -352,11 +352,10 @@
     color: var(--cream); cursor: pointer; font-size: 14px; flex-shrink: 0; padding: 0; }
   .sv-mini:hover { border-color: var(--gold); }
   .sv-del:hover { border-color: var(--red); color: var(--red); }
-  .sv-main { flex: 1; cursor: pointer; }
-  .sv-mini { width: 32px; height: 32px; border-radius: 8px; background: var(--bg2); border: 1.5px solid var(--border);
-    color: var(--cream); cursor: pointer; font-size: 14px; flex-shrink: 0; }
-  .sv-mini:hover { border-color: var(--gold); }
-  .sv-del:hover { border-color: var(--red); color: var(--red); }
+  .fridge-pin { width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: linear-gradient(180deg, #8fd0ec, #3f8fd6); border: 2px solid #133a55; box-shadow: 0 3px 8px rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; }
+  .fridge-pin span { transform: rotate(45deg); font-size: 13px; font-weight: 800; color: #08263a; }
 </style>
 </head>
 <body>
@@ -398,6 +397,21 @@
         <button class="planner-mini" id="plannerSave">💾 Save</button>
         <button class="planner-mini" id="plannerShare">🔗 Share</button>
         <button class="planner-mini" id="plannerClear">🗑 Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fridge to Fridge planner -->
+  <div class="planner-panel" id="fridgePanel" style="display:none;">
+    <div class="planner-head">🏠 Fridge to Fridge <button class="planner-x" id="fridgeClose">✕</button></div>
+    <div class="planner-hint">Tap anywhere on the map to drop a friend's place. Build a crawl between homes, not pubs!</div>
+    <div class="planner-list" id="fridgeList"></div>
+    <div class="planner-stats" id="fridgeStats"></div>
+    <div class="planner-actions">
+      <button class="btn" id="fridgeStart" disabled>Start This Crawl ▶</button>
+      <div class="planner-row2">
+        <button class="planner-mini" id="fridgeSave">💾 Save</button>
+        <button class="planner-mini" id="fridgeClear">🗑 Clear</button>
       </div>
     </div>
   </div>
@@ -1043,6 +1057,12 @@ const markers = [];
 let plannerStops = [];        // pub indices, in chosen order
 let plannerLine = null;
 
+/* fridge-to-fridge (custom home stops appended to PUBS) */
+let fridgeStops = [];         // PUBS indices of home stops, in order
+let fridgeMarkers = {};       // idx -> marker
+let fridgeLine = null;
+let crawlIsFridge = false;    // current crawl is a fridge crawl (for cleanup)
+
 /* team mode */
 let teamMode = false;
 let teams = [];               // [{name, color, score, played}]
@@ -1076,6 +1096,10 @@ function plannerPin(n) {
   return L.divIcon({ className: '', html: `<div class="plan-pin"><span>${n}</span></div>`,
     iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28] });
 }
+function fridgePin(n) {
+  return L.divIcon({ className: '', html: `<div class="fridge-pin"><span>${n}</span></div>`,
+    iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -30] });
+}
 
 // Google-Maps-style route: a darker casing under a solid coloured line with rounded
 // joins/caps, plus repeating directional arrows. Returns a FeatureGroup (has getBounds).
@@ -1096,6 +1120,11 @@ function drawPath(latlngs, color, edge) {
 
 function popupHtml(i) {
   const p = PUBS[i], t = TOPICS[p.topic];
+  if (mode === 'fridge') {
+    return `<div class="pop-name">${escapeHtml(p.name)}</div><div class="pop-sub">🏠 Home · ${t.emoji} ${t.name}</div>
+      <button class="cam-btn" onclick="renameFridge(${i})">✏️ Rename</button>
+      <button class="start-btn" style="background:var(--red);color:#fff" onclick="removeFridge(${i})">Remove ✕</button>`;
+  }
   if (mode === 'planner') {
     const pos = plannerStops.indexOf(i);
     const pbtn = pos >= 0
@@ -1167,6 +1196,10 @@ function updateTopbar() {
     $('modeSub').textContent = '🗺️ Planning your crawl';
     $('progressPill').textContent = `${plannerStops.length} pub${plannerStops.length === 1 ? '' : 's'} picked`;
     b.textContent = '✖ Exit Planner'; b.classList.add('exit');
+  } else if (mode === 'fridge') {
+    $('modeSub').textContent = '🏠 Fridge to Fridge';
+    $('progressPill').textContent = `${fridgeStops.length} home${fridgeStops.length === 1 ? '' : 's'}`;
+    b.textContent = '✖ Exit'; b.classList.add('exit');
   } else {
     $('modeSub').textContent = 'Free play · tap any pub';
     $('progressPill').textContent = `${completed.size} cleared`;
@@ -1196,6 +1229,30 @@ function buildRouteList() {
     <div class="r-count">Customiser${plannerStops.length ? ' · ' + plannerStops.length + ' saved' : ''}</div></div>`;
   custom.onclick = () => enterPlanner();
   list.appendChild(custom);
+  // fridge-to-fridge entry
+  const fridge = document.createElement('button');
+  fridge.className = 'route'; fridge.style.borderColor = '#3f8fd6';
+  fridge.innerHTML = `<div class="r-emoji">🏠</div><div>
+    <div class="r-name">Fridge to Fridge</div>
+    <div class="r-desc">Drop pins on people's homes — a BYO crawl, no pubs.</div>
+    <div class="r-count">Customiser</div></div>`;
+  fridge.onclick = () => enterFridge();
+  list.appendChild(fridge);
+  // saved fridge crawls
+  getSavedFridges().forEach(s => {
+    const el = document.createElement('div'); el.className = 'route'; el.style.cursor = 'default';
+    el.innerHTML = `<div class="r-emoji" style="cursor:pointer">🏠</div>
+      <div class="sv-main"><div class="r-name">${escapeHtml(s.name)}</div>
+        <div class="r-desc">${s.fridges.length} homes · your saved fridge crawl</div></div>
+      <button class="sv-mini sv-edit" title="Edit in planner">✏️</button>
+      <button class="sv-mini sv-del" title="Delete">🗑</button>`;
+    const start = () => { $('crawlOverlay').classList.remove('active'); loadSavedFridge(s, true); };
+    el.querySelector('.r-emoji').onclick = start;
+    el.querySelector('.sv-main').onclick = start;
+    el.querySelector('.sv-edit').onclick = () => { $('crawlOverlay').classList.remove('active'); loadSavedFridge(s, false); };
+    el.querySelector('.sv-del').onclick = () => { if (confirm(`Delete "${s.name}"?`)) { setSavedFridges(getSavedFridges().filter(x => x.id !== s.id)); buildRouteList(); } };
+    list.appendChild(el);
+  });
   // saved custom crawls
   getSavedCrawls().forEach(s => {
     const el = document.createElement('div'); el.className = 'route'; el.style.cursor = 'default';
@@ -1233,6 +1290,7 @@ function startCrawlRoute(route) {
   map.removeLayer(cluster);   // hide the 500+ extra pubs; focus on the route
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
   if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
+  if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
   // custom routes can include clustered (extra) pubs — show their markers individually
   crawlExtraMarkers = [];
   route.stops.forEach(i => { if (PUBS[i].extra) { markers[i].addTo(map); crawlExtraMarkers.push(i); } });
@@ -1249,7 +1307,13 @@ function exitCrawl() {
   crawlExtraMarkers.forEach(i => map.removeLayer(markers[i]));
   crawlExtraMarkers = [];
   crawlRoute = null;
+  if (crawlIsFridge) {                       // a fridge crawl just ended — tidy up homes
+    fridgeStops.forEach(idx => { if (markers[idx]) map.removeLayer(markers[idx]); });
+    if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
+    crawlIsFridge = false;
+  }
   map.addLayer(cluster);
+  for (let i = 0; i < CURATED_COUNT; i++) markers[i].addTo(map);   // ensure featured pubs are back
   refreshMarkers();
   updateTopbar();
   map.closePopup();
@@ -1266,6 +1330,7 @@ function goToActivePub() {
 $('crawlBtn').onclick = () => {
   if (mode === 'crawl') exitCrawl();
   else if (mode === 'planner') exitPlanner();
+  else if (mode === 'fridge') exitFridge();
   else { buildRouteList(); $('crawlOverlay').classList.add('active'); }
 };
 $('crawlClose').onclick = () => $('crawlOverlay').classList.remove('active');
@@ -1382,6 +1447,151 @@ $('plannerSave').onclick = () => {
   setSavedCrawls(saved);
   alert(`Saved "${name}" ✓  — find it under 🍻 Pub Crawl.`);
 };
+
+/* ===================== FRIDGE TO FRIDGE ===================== */
+function showPubMarkers(show) {
+  if (show) { map.addLayer(cluster); for (let i = 0; i < CURATED_COUNT; i++) markers[i].addTo(map); }
+  else { map.removeLayer(cluster); for (let i = 0; i < CURATED_COUNT; i++) map.removeLayer(markers[i]); }
+}
+// Create a home stop (appended to PUBS so the crawl/quiz engine treats it like any pub). Returns its index.
+function addFridgeData(d) {
+  PUBS.push({ name: d.name, area: 'Home', lat: d.lat, lng: d.lng, topic: d.topic, fridge: true,
+    blurb: 'A home stop on your fridge-to-fridge crawl — quiz topic: ' + TOPICS[d.topic].name + '.' });
+  const idx = PUBS.length - 1;
+  const m = L.marker([d.lat, d.lng]);
+  m.bindPopup('', { closeButton: true });
+  m.on('popupopen', () => m.setPopupContent(popupHtml(idx)));
+  markers[idx] = m; fridgeMarkers[idx] = m;
+  return idx;
+}
+function addFridge(latlng) {
+  const name = (prompt("Whose place is this? (e.g. \"Sarah's\")", '') || '').trim();
+  if (!name) return;
+  const keys = Object.keys(TOPICS);
+  const topic = keys[Math.floor(Math.random() * keys.length)];
+  const idx = addFridgeData({ name, lat: latlng.lat, lng: latlng.lng, topic });
+  markers[idx].addTo(map);
+  fridgeStops.push(idx);
+  afterFridgeChange();
+  setTimeout(() => markers[idx].openPopup(), 120);
+}
+window.removeFridge = function (i) {
+  const pos = fridgeStops.indexOf(i);
+  if (pos >= 0) fridgeStops.splice(pos, 1);
+  if (markers[i]) map.removeLayer(markers[i]);
+  delete fridgeMarkers[i];
+  map.closePopup();
+  afterFridgeChange();
+};
+window.renameFridge = function (i) {
+  const nm = (prompt('Rename this place:', PUBS[i].name) || '').trim();
+  if (!nm) return;
+  PUBS[i].name = nm;
+  markers[i].setPopupContent(popupHtml(i));
+  renderFridgePanel();
+};
+function moveFridge(pos, dir) {
+  const t = pos + dir; if (t < 0 || t >= fridgeStops.length) return;
+  [fridgeStops[pos], fridgeStops[t]] = [fridgeStops[t], fridgeStops[pos]];
+  afterFridgeChange();
+}
+function afterFridgeChange() {
+  fridgeStops.forEach((idx, pos) => markers[idx].setIcon(fridgePin(pos + 1)));
+  if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
+  if (fridgeStops.length >= 2) fridgeLine = drawPath(fridgeStops.map(i => [PUBS[i].lat, PUBS[i].lng]), '#8fd0ec', '#1f5e8a').addTo(map);
+  renderFridgePanel();
+  updateTopbar();
+}
+function renderFridgePanel() {
+  const list = $('fridgeList'); list.innerHTML = '';
+  if (!fridgeStops.length) list.innerHTML = '<div class="mp-note" style="text-align:left;padding:6px 4px;">No homes yet — tap the map to drop one.</div>';
+  fridgeStops.forEach((idx, pos) => {
+    const p = PUBS[idx];
+    const row = document.createElement('div'); row.className = 'plan-row';
+    row.innerHTML = `<span class="plan-num">${pos + 1}</span>
+      <span class="plan-name">${escapeHtml(p.name)}<span class="plan-area">${TOPICS[p.topic].emoji} ${TOPICS[p.topic].name}</span></span>
+      <span class="plan-acts">
+        <button data-up="${pos}" ${pos === 0 ? 'disabled' : ''}>▲</button>
+        <button data-down="${pos}" ${pos === fridgeStops.length - 1 ? 'disabled' : ''}>▼</button>
+        <button data-rm="${idx}" class="rm">✕</button></span>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => moveFridge(+b.dataset.up, -1));
+  list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => moveFridge(+b.dataset.down, 1));
+  list.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeFridge(+b.dataset.rm));
+  const km = (function () { let d = 0; for (let k = 1; k < fridgeStops.length; k++) d += haversineKm([PUBS[fridgeStops[k - 1]].lat, PUBS[fridgeStops[k - 1]].lng], [PUBS[fridgeStops[k]].lat, PUBS[fridgeStops[k]].lng]); return d; })();
+  $('fridgeStats').textContent = fridgeStops.length >= 2 ? `${fridgeStops.length} homes · ${km.toFixed(1)} km · ~${Math.round(km / 5 * 60)} min walk` : (fridgeStops.length === 1 ? '1 home — add more to build a crawl' : '');
+  $('fridgeStart').disabled = fridgeStops.length < 2;
+}
+function fridgeMapClick(e) { if (mode === 'fridge') addFridge(e.latlng); }
+function enterFridge() {
+  mode = 'fridge';
+  $('crawlOverlay').classList.remove('active');
+  showPubMarkers(false);
+  map.closePopup();
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  fridgeStops.forEach(idx => markers[idx].addTo(map));
+  $('fridgePanel').style.display = 'flex';
+  map.on('click', fridgeMapClick);
+  afterFridgeChange();
+  updateTopbar();
+  if (fridgeStops.length) map.fitBounds(fridgeStops.map(i => [PUBS[i].lat, PUBS[i].lng]), { padding: [90, 90] });
+}
+function exitFridge() {
+  mode = 'free';
+  map.off('click', fridgeMapClick);
+  if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
+  fridgeStops.forEach(idx => map.removeLayer(markers[idx]));
+  $('fridgePanel').style.display = 'none';
+  showPubMarkers(true);
+  updateTopbar();
+  map.closePopup();
+}
+function clearFridges() {
+  fridgeStops.forEach(idx => { if (markers[idx]) map.removeLayer(markers[idx]); });
+  if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
+  fridgeStops = []; fridgeMarkers = {};
+}
+function startFridgeCrawl() {
+  if (fridgeStops.length < 2) { alert('Drop at least 2 homes to start a crawl.'); return; }
+  crawlIsFridge = true;
+  $('fridgePanel').style.display = 'none';
+  map.off('click', fridgeMapClick);
+  startCrawlRoute({ emoji: '🏠', name: 'Fridge to Fridge', desc: '', stops: [...fridgeStops] });
+}
+$('fridgeClose').onclick = exitFridge;
+$('fridgeStart').onclick = startFridgeCrawl;
+$('fridgeClear').onclick = () => { clearFridges(); afterFridgeChange(); };
+
+/* saved fridge crawls (store coordinates, not indices) */
+function getSavedFridges() { try { const s = JSON.parse(localStorage.getItem('fridge-saved')); return Array.isArray(s) ? s : []; } catch (e) { return []; } }
+function setSavedFridges(arr) { try { localStorage.setItem('fridge-saved', JSON.stringify(arr)); } catch (e) {} }
+$('fridgeSave').onclick = () => {
+  if (fridgeStops.length < 2) { alert('Drop at least 2 homes before saving.'); return; }
+  const name = (prompt('Name this fridge crawl (e.g. "Birthday house crawl"):', '') || '').trim();
+  if (!name) return;
+  const saved = getSavedFridges();
+  const homes = fridgeStops.map(i => ({ name: PUBS[i].name, lat: PUBS[i].lat, lng: PUBS[i].lng, topic: PUBS[i].topic }));
+  const at = saved.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
+  const entry = { id: at >= 0 ? saved[at].id : 'f' + Date.now(), name, fridges: homes };
+  if (at >= 0) { if (!confirm(`A fridge crawl named "${name}" already exists. Overwrite it?`)) return; saved[at] = entry; }
+  else saved.push(entry);
+  setSavedFridges(saved);
+  alert(`Saved "${name}" ✓  — find it under 🍻 Pub Crawl.`);
+};
+function loadSavedFridge(entry, andStart) {
+  clearFridges();
+  const stops = entry.fridges.map(f => { const idx = addFridgeData(f); return idx; });
+  fridgeStops = stops;
+  if (andStart) {
+    showPubMarkers(false);
+    fridgeStops.forEach(idx => markers[idx].addTo(map));
+    crawlIsFridge = true;
+    startCrawlRoute({ emoji: '🏠', name: entry.name, desc: '', stops: [...fridgeStops] });
+  } else {
+    enterFridge();
+  }
+}
 
 /* ===================== TEAM MODE ===================== */
 function renderTeamSetup() {
