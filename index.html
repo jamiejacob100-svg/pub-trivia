@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-polylinedecorator/1.6.0/leaflet.polylineDecorator.min.js"></script>
 <script src="pubs-data.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -1076,6 +1077,23 @@ function plannerPin(n) {
     iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28] });
 }
 
+// Google-Maps-style route: a darker casing under a solid coloured line with rounded
+// joins/caps, plus repeating directional arrows. Returns a FeatureGroup (has getBounds).
+function drawPath(latlngs, color, edge) {
+  color = color || '#f7d089'; edge = edge || '#8a5a1e';
+  const casing = L.polyline(latlngs, { color: edge, weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round' });
+  const main = L.polyline(latlngs, { color, weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round' });
+  const layers = [casing, main];
+  if (window.L && L.Symbol && L.polylineDecorator) {
+    layers.push(L.polylineDecorator(main, {
+      patterns: [{ offset: 18, repeat: 78, symbol: L.Symbol.arrowHead({
+        pixelSize: 10, headAngle: 55, polygon: false,
+        pathOptions: { stroke: true, color: edge, weight: 3, opacity: 1 } }) }]
+    }));
+  }
+  return L.featureGroup(layers);
+}
+
 function popupHtml(i) {
   const p = PUBS[i], t = TOPICS[p.topic];
   if (mode === 'planner') {
@@ -1218,8 +1236,7 @@ function startCrawlRoute(route) {
   // custom routes can include clustered (extra) pubs — show their markers individually
   crawlExtraMarkers = [];
   route.stops.forEach(i => { if (PUBS[i].extra) { markers[i].addTo(map); crawlExtraMarkers.push(i); } });
-  routeLine = L.polyline(route.stops.map(i => [PUBS[i].lat, PUBS[i].lng]),
-    { color: '#e0a458', weight: 3, opacity: .7, dashArray: '8 9' }).addTo(map);
+  routeLine = drawPath(route.stops.map(i => [PUBS[i].lat, PUBS[i].lng])).addTo(map);
   refreshMarkers();
   updateTopbar();
   map.fitBounds(routeLine.getBounds(), { padding: [80, 80] });
@@ -1296,8 +1313,7 @@ function refreshPlannerMarkers() {
   });
   if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
   if (plannerStops.length >= 2)
-    plannerLine = L.polyline(plannerStops.map(i => [PUBS[i].lat, PUBS[i].lng]),
-      { color: '#e0a458', weight: 3, opacity: .8, dashArray: '8 9' }).addTo(map);
+    plannerLine = drawPath(plannerStops.map(i => [PUBS[i].lat, PUBS[i].lng])).addTo(map);
 }
 window.togglePlannerPub = function (i) {
   const pos = plannerStops.indexOf(i);
@@ -1530,7 +1546,7 @@ $('teeOff').onclick = () => {
   // map: focus on the 9 holes
   map.removeLayer(cluster);
   if (golfLine) map.removeLayer(golfLine);
-  golfLine = L.polyline(holes.map(i => [PUBS[i].lat, PUBS[i].lng]), { color: '#4caf6d', weight: 3, opacity: .75, dashArray: '4 8' }).addTo(map);
+  golfLine = drawPath(holes.map(i => [PUBS[i].lat, PUBS[i].lng]), '#7fe0a0', '#2e7d4f').addTo(map);
   holes.forEach((pi, n) => markers[pi].setIcon(golfPin(n + 1)));
   map.fitBounds(golfLine.getBounds(), { padding: [80, 80] });
   startAttempt();
