@@ -47,6 +47,9 @@ Open **🍻 Pub Crawl → Build your own crawl** to plan a route in advance: tap
 ## 🏠 Fridge to Fridge mode
 A BYO crawl between people's homes instead of pubs. Open **🍻 Pub Crawl → Fridge to Fridge**, then **search an address** (powered by OpenStreetMap, biased to Sydney) to drop a home precisely, or **tap anywhere on the map** to place one by hand (name each one). Build the route in order with walking distance/time, reorder/remove/rename stops, then **Start This Crawl** to play it with trivia at each home (each gets a random topic). Fridge crawls can be **saved with a name** and reappear in the Pub Crawl menu to start, edit, or delete. Saved locally on the device.
 
+## 🧭 Directions (walking or driving)
+Pub crawls and fridge crawls now draw the **real road route** between stops (not straight lines), with a **🚶 Walk / 🚗 Drive** toggle that shows the **total distance and time** for that mode. Tap **🧭 Directions** to see **turn-by-turn instructions** for each leg. Powered by the free OpenStreetMap-based Valhalla routing service; if it's unavailable it falls back to a straight-line estimate (marked "approx").
+
 ## 🍻 Pub Crawl mode
 Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Preset routes:
 - 🪨 **The Rocks Historic Crawl** — 8 pubs

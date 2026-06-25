@@ -370,6 +370,25 @@
   .fridge-result .fr-name { font-weight: 700; color: var(--cream); }
   .fridge-result .fr-sub { font-size: 11px; opacity: .6; }
   .fridge-result.msg { cursor: default; opacity: .7; }
+  /* walk/drive toggle + directions */
+  .prof-toggle { display: inline-flex; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .prof-toggle button { background: transparent; border: none; color: var(--cream); padding: 8px 12px; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .prof-toggle button.on { background: var(--gold); color: #fff; font-weight: 800; }
+  .planner-prof { display: flex; gap: 8px; margin-bottom: 8px; }
+  .planner-prof .prof-toggle { flex: 0 0 auto; }
+  .planner-prof .planner-mini { flex: 1; }
+  .crawl-dir-btn { position: absolute; z-index: 1100; left: 14px; bottom: 14px; background: var(--panel);
+    border: 2px solid var(--gold); color: var(--gold-bright); font-weight: 800; border-radius: 12px; padding: 11px 15px;
+    cursor: pointer; box-shadow: 0 8px 20px var(--shadow); font-family: inherit; font-size: 14px; }
+  @media (max-width: 560px) { .crawl-dir-btn { left: 8px; bottom: 8px; font-size: 13px; } }
+  .dir-total { text-align: center; font-weight: 800; color: var(--gold-bright); font-size: 16px; margin: 4px 0 14px; }
+  .dir-leg { margin-bottom: 14px; }
+  .dir-leg-h { font-weight: 800; color: var(--gold-bright); font-size: 14px; display: flex; justify-content: space-between;
+    gap: 8px; border-bottom: 1.5px solid var(--border); padding-bottom: 5px; margin-bottom: 6px; }
+  .dir-leg-h span { font-weight: 600; color: var(--cream); opacity: .65; font-size: 12px; white-space: nowrap; }
+  .dir-step { display: flex; gap: 8px; font-size: 13px; padding: 4px 0; line-height: 1.4; }
+  .dir-dot { color: var(--gold); flex-shrink: 0; }
+  .dir-km { opacity: .55; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -399,6 +418,27 @@
 
   <div id="map"></div>
 
+  <!-- Floating "Directions" button during an active crawl -->
+  <button class="crawl-dir-btn" id="crawlDirBtn" style="display:none;">🧭 Directions</button>
+
+  <!-- Turn-by-turn directions overlay -->
+  <div class="overlay" id="dirOverlay">
+    <div class="card">
+      <div class="card-head">
+        <div class="eyebrow">Turn-by-turn</div>
+        <div class="title">🧭 Directions</div>
+        <button class="close-x" id="dirClose">&times;</button>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;justify-content:center;margin-bottom:12px;">
+          <div class="prof-toggle"><button data-p="pedestrian" class="on">🚶 Walk</button><button data-p="auto">🚗 Drive</button></div>
+        </div>
+        <div class="dir-total" id="dirTotal"></div>
+        <div id="dirSteps"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Crawl Planner floating panel -->
   <div class="planner-panel" id="plannerPanel" style="display:none;">
     <div class="planner-head">🗺️ Crawl Planner <button class="planner-x" id="plannerClose">✕</button></div>
@@ -406,6 +446,10 @@
     <div class="planner-list" id="plannerList"></div>
     <div class="planner-stats" id="plannerStats"></div>
     <div class="planner-actions">
+      <div class="planner-prof">
+        <div class="prof-toggle"><button data-p="pedestrian" class="on">🚶 Walk</button><button data-p="auto">🚗 Drive</button></div>
+        <button class="planner-mini" id="plannerDir">🧭 Directions</button>
+      </div>
       <button class="btn" id="plannerStart" disabled>Start This Crawl ▶</button>
       <div class="planner-row2">
         <button class="planner-mini" id="plannerSave">💾 Save</button>
@@ -426,6 +470,10 @@
     <div class="planner-list" id="fridgeList"></div>
     <div class="planner-stats" id="fridgeStats"></div>
     <div class="planner-actions">
+      <div class="planner-prof">
+        <div class="prof-toggle"><button data-p="pedestrian" class="on">🚶 Walk</button><button data-p="auto">🚗 Drive</button></div>
+        <button class="planner-mini" id="fridgeDir">🧭 Directions</button>
+      </div>
       <button class="btn" id="fridgeStart" disabled>Start This Crawl ▶</button>
       <div class="planner-row2">
         <button class="planner-mini" id="fridgeSave">💾 Save</button>
@@ -1136,6 +1184,111 @@ function drawPath(latlngs, color, edge) {
   return L.featureGroup(layers);
 }
 
+/* ---- real road directions via Valhalla (free, keyless), walk or drive ---- */
+let routeProfile = 'pedestrian';   // 'pedestrian' | 'auto'
+let routeMeta = null;              // { km, min, legs:[{km,min,steps}], routed }
+let routeCtx = null;               // { kind, stops, names }
+let routeTimer = null;
+function profileWord() { return routeProfile === 'auto' ? 'drive' : 'walk'; }
+function decodePoly6(str) {
+  let i = 0, lat = 0, lng = 0, out = [];
+  while (i < str.length) {
+    let b, sh = 0, r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+    lat += (r & 1) ? ~(r >> 1) : (r >> 1);
+    sh = 0; r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lat / 1e6, lng / 1e6]);
+  }
+  return out;
+}
+async function fetchRoute(latlngs, profile) {
+  const body = { locations: latlngs.map(c => ({ lat: c[0], lon: c[1] })), costing: profile, directions_options: { units: 'kilometers' } };
+  const url = 'https://valhalla1.openstreetmap.de/route?json=' + encodeURIComponent(JSON.stringify(body));
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('http ' + res.status);
+  const d = await res.json();
+  if (!d.trip || !d.trip.legs) throw new Error('no route');
+  let coords = [];
+  const legs = d.trip.legs.map(leg => {
+    coords = coords.concat(decodePoly6(leg.shape));
+    return { km: leg.summary.length, min: leg.summary.time / 60, steps: (leg.maneuvers || []).map(m => ({ text: m.instruction, km: m.length || 0 })) };
+  });
+  return { coords, km: d.trip.summary.length, min: d.trip.summary.time / 60, legs };
+}
+function routeColors(kind) { return kind === 'fridge' ? ['#8b3fd6', '#5a1f9a'] : ['#1a73e8', '#0b4ea2']; }
+function getLine(kind) { return kind === 'planner' ? plannerLine : kind === 'fridge' ? fridgeLine : routeLine; }
+function setLine(kind, l) { if (kind === 'planner') plannerLine = l; else if (kind === 'fridge') fridgeLine = l; else routeLine = l; }
+function modeForKind(kind) { return kind === 'planner' ? 'planner' : kind === 'fridge' ? 'fridge' : 'crawl'; }
+function renderRoute(kind, stops) {
+  const latlngs = stops.map(i => [PUBS[i].lat, PUBS[i].lng]);
+  routeCtx = { kind, stops: stops.slice(), names: stops.map(i => PUBS[i].name) };
+  const [color, edge] = routeColors(kind);
+  let cur = getLine(kind); if (cur) { map.removeLayer(cur); setLine(kind, null); }
+  if (latlngs.length < 2) { routeMeta = null; updateRouteStats(kind); return; }
+  setLine(kind, drawPath(latlngs, color, edge).addTo(map));   // instant straight line
+  let hv = 0; for (let k = 1; k < latlngs.length; k++) hv += haversineKm(latlngs[k - 1], latlngs[k]);
+  routeMeta = { km: hv, min: hv / (routeProfile === 'auto' ? 30 : 5) * 60, legs: null, routed: false };
+  updateRouteStats(kind);
+  if ($('dirOverlay').classList.contains('active')) renderDirections();
+  clearTimeout(routeTimer);
+  const want = routeProfile, n = stops.length;
+  routeTimer = setTimeout(async () => {
+    try {
+      const meta = await fetchRoute(latlngs, want);
+      if (mode !== modeForKind(kind) || want !== routeProfile || !routeCtx || routeCtx.stops.length !== n) return;
+      const cur2 = getLine(kind); if (cur2) map.removeLayer(cur2);
+      setLine(kind, drawPath(meta.coords, color, edge).addTo(map));
+      routeMeta = Object.assign({ routed: true }, meta);
+      updateRouteStats(kind);
+      if ($('dirOverlay').classList.contains('active')) renderDirections();
+    } catch (e) { /* keep straight-line fallback */ }
+  }, 500);
+}
+function updateRouteStats(kind) {
+  const word = profileWord();
+  const line = routeMeta ? `${routeMeta.km.toFixed(1)} km · ~${Math.max(1, Math.round(routeMeta.min))} min ${word}${routeMeta.routed ? '' : ' (approx)'}` : '';
+  if (kind === 'planner') {
+    const n = plannerStops.length;
+    $('plannerStats').textContent = n >= 2 ? `${n} pubs · ${line}` : (n === 1 ? '1 pub — add more to build a route' : '');
+  } else if (kind === 'fridge') {
+    const n = fridgeStops.length;
+    $('fridgeStats').textContent = n >= 2 ? `${n} homes · ${line}` : (n === 1 ? '1 home — add more to build a crawl' : '');
+  } else {
+    const b = $('crawlDirBtn'); if (b && routeMeta) b.innerHTML = `🧭 ${routeMeta.km.toFixed(1)} km · ${Math.max(1, Math.round(routeMeta.min))} min ${word}`;
+  }
+}
+function setProfile(p) {
+  routeProfile = p;
+  document.querySelectorAll('.prof-toggle button').forEach(b => b.classList.toggle('on', b.dataset.p === p));
+  if (mode === 'planner') renderRoute('planner', plannerStops);
+  else if (mode === 'fridge') renderRoute('fridge', fridgeStops);
+  else if (mode === 'crawl' && crawlRoute) renderRoute('crawl', crawlRoute.stops);
+}
+function renderDirections() {
+  $('dirTotal').textContent = routeMeta ? `${routeMeta.km.toFixed(1)} km · ~${Math.max(1, Math.round(routeMeta.min))} min ${profileWord()}` : 'No route yet';
+  const box = $('dirSteps'); box.innerHTML = '';
+  if (!routeMeta || !routeMeta.legs) { box.innerHTML = '<div class="mp-note" style="text-align:left">Turn-by-turn directions aren\'t available right now — showing a straight-line estimate. Try again in a moment.</div>'; return; }
+  routeMeta.legs.forEach((leg, li) => {
+    const name = (routeCtx && routeCtx.names && routeCtx.names[li + 1]) ? routeCtx.names[li + 1] : ('Stop ' + (li + 2));
+    const wrap = document.createElement('div'); wrap.className = 'dir-leg';
+    wrap.innerHTML = `<div class="dir-leg-h"><span style="color:var(--gold-bright)">→ ${escapeHtml(name)}</span> <span>${leg.km.toFixed(1)} km · ${Math.max(1, Math.round(leg.min))} min</span></div>`;
+    leg.steps.forEach(s => {
+      const r = document.createElement('div'); r.className = 'dir-step';
+      r.innerHTML = `<span class="dir-dot">•</span><span>${escapeHtml(s.text)}${s.km > 0.03 ? ` <span class="dir-km">(${Math.round(s.km * 1000)} m)</span>` : ''}</span>`;
+      wrap.appendChild(r);
+    });
+    box.appendChild(wrap);
+  });
+}
+function openDirections() { renderDirections(); $('dirOverlay').classList.add('active'); }
+$('dirClose').onclick = () => $('dirOverlay').classList.remove('active');
+$('plannerDir').onclick = openDirections;
+$('fridgeDir').onclick = openDirections;
+$('crawlDirBtn').onclick = openDirections;
+document.querySelectorAll('.prof-toggle button').forEach(b => b.onclick = () => setProfile(b.dataset.p));
+
 function popupHtml(i) {
   const p = PUBS[i], t = TOPICS[p.topic];
   if (mode === 'fridge') {
@@ -1312,15 +1465,18 @@ function startCrawlRoute(route) {
   // custom routes can include clustered (extra) pubs — show their markers individually
   crawlExtraMarkers = [];
   route.stops.forEach(i => { if (PUBS[i].extra) { markers[i].addTo(map); crawlExtraMarkers.push(i); } });
-  routeLine = drawPath(route.stops.map(i => [PUBS[i].lat, PUBS[i].lng])).addTo(map);
+  renderRoute('crawl', route.stops);
+  $('crawlDirBtn').style.display = 'block';
   refreshMarkers();
   updateTopbar();
-  map.fitBounds(routeLine.getBounds(), { padding: [80, 80] });
+  map.fitBounds(L.latLngBounds(route.stops.map(i => [PUBS[i].lat, PUBS[i].lng])), { padding: [80, 80] });
   goToActivePub();
 }
 
 function exitCrawl() {
   mode = 'free';
+  $('crawlDirBtn').style.display = 'none';
+  $('dirOverlay').classList.remove('active');
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
   crawlExtraMarkers.forEach(i => map.removeLayer(markers[i]));
   crawlExtraMarkers = [];
@@ -1394,9 +1550,6 @@ function refreshPlannerMarkers() {
     const pos = plannerStops.indexOf(i);
     markers[i].setIcon(pos >= 0 ? plannerPin(pos + 1) : pinIcon('idle'));
   });
-  if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
-  if (plannerStops.length >= 2)
-    plannerLine = drawPath(plannerStops.map(i => [PUBS[i].lat, PUBS[i].lng])).addTo(map);
 }
 window.togglePlannerPub = function (i) {
   const pos = plannerStops.indexOf(i);
@@ -1409,7 +1562,7 @@ function movePlan(pos, dir) {
   [plannerStops[pos], plannerStops[t]] = [plannerStops[t], plannerStops[pos]];
   afterPlanChange();
 }
-function afterPlanChange() { savePlan(); refreshPlannerMarkers(); renderPlannerPanel(); updateTopbar(); }
+function afterPlanChange() { savePlan(); refreshPlannerMarkers(); renderPlannerPanel(); renderRoute('planner', plannerStops); updateTopbar(); }
 function renderPlannerPanel() {
   const list = $('plannerList'); list.innerHTML = '';
   if (!plannerStops.length) {
@@ -1429,11 +1582,7 @@ function renderPlannerPanel() {
   list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => movePlan(+b.dataset.up, -1));
   list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => movePlan(+b.dataset.down, 1));
   list.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { plannerStops.splice(+b.dataset.rm, 1); afterPlanChange(); });
-  const km = plannerDistance(), mins = Math.round(km / 5 * 60);
-  $('plannerStats').textContent = plannerStops.length >= 2
-    ? `${plannerStops.length} pubs · ${km.toFixed(1)} km · ~${mins} min walk`
-    : (plannerStops.length === 1 ? '1 pub — add more to build a route' : '');
-  $('plannerStart').disabled = plannerStops.length < 2;
+  $('plannerStart').disabled = plannerStops.length < 2;   // distance/time set by renderRoute
 }
 function startPlannedCrawl() {
   if (plannerStops.length < 2) { alert('Add at least 2 pubs to start a crawl.'); return; }
@@ -1515,9 +1664,8 @@ function moveFridge(pos, dir) {
 }
 function afterFridgeChange() {
   fridgeStops.forEach((idx, pos) => markers[idx].setIcon(fridgePin(pos + 1)));
-  if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
-  if (fridgeStops.length >= 2) fridgeLine = drawPath(fridgeStops.map(i => [PUBS[i].lat, PUBS[i].lng]), '#8b3fd6', '#5a1f9a').addTo(map);
   renderFridgePanel();
+  renderRoute('fridge', fridgeStops);
   updateTopbar();
 }
 function renderFridgePanel() {
@@ -1537,9 +1685,7 @@ function renderFridgePanel() {
   list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => moveFridge(+b.dataset.up, -1));
   list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => moveFridge(+b.dataset.down, 1));
   list.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeFridge(+b.dataset.rm));
-  const km = (function () { let d = 0; for (let k = 1; k < fridgeStops.length; k++) d += haversineKm([PUBS[fridgeStops[k - 1]].lat, PUBS[fridgeStops[k - 1]].lng], [PUBS[fridgeStops[k]].lat, PUBS[fridgeStops[k]].lng]); return d; })();
-  $('fridgeStats').textContent = fridgeStops.length >= 2 ? `${fridgeStops.length} homes · ${km.toFixed(1)} km · ~${Math.round(km / 5 * 60)} min walk` : (fridgeStops.length === 1 ? '1 home — add more to build a crawl' : '');
-  $('fridgeStart').disabled = fridgeStops.length < 2;
+  $('fridgeStart').disabled = fridgeStops.length < 2;   // distance/time set by renderRoute
 }
 function fridgeMapClick(e) { if (mode === 'fridge') addFridge(e.latlng); }
 function enterFridge() {
