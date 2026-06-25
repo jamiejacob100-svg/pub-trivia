@@ -45,7 +45,7 @@ Open **🍻 Pub Crawl → Build your own crawl** to plan a route in advance: tap
 - The in-progress plan also auto-saves, so you can come back to it later.
 
 ## 🏠 Fridge to Fridge mode
-A BYO crawl between people's homes instead of pubs. Open **🍻 Pub Crawl → Fridge to Fridge**, then **tap anywhere on the map** to drop a friend's place (name each one). Build the route in order with walking distance/time, reorder/remove/rename stops, then **Start This Crawl** to play it with trivia at each home (each gets a random topic). Fridge crawls can be **saved with a name** and reappear in the Pub Crawl menu to start, edit, or delete. Saved locally on the device.
+A BYO crawl between people's homes instead of pubs. Open **🍻 Pub Crawl → Fridge to Fridge**, then **search an address** (powered by OpenStreetMap, biased to Sydney) to drop a home precisely, or **tap anywhere on the map** to place one by hand (name each one). Build the route in order with walking distance/time, reorder/remove/rename stops, then **Start This Crawl** to play it with trivia at each home (each gets a random topic). Fridge crawls can be **saved with a name** and reappear in the Pub Crawl menu to start, edit, or delete. Saved locally on the device.
 
 ## 🍻 Pub Crawl mode
 Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Preset routes:

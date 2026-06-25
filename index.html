@@ -356,6 +356,19 @@
     background: linear-gradient(180deg, #8fd0ec, #3f8fd6); border: 2px solid #133a55; box-shadow: 0 3px 8px rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; }
   .fridge-pin span { transform: rotate(45deg); font-size: 13px; font-weight: 800; color: #08263a; }
+  .fridge-search { position: relative; padding: 4px 12px 2px; }
+  .fridge-search input { width: 100%; background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
+    padding: 9px 12px; border-radius: 9px; font-size: 14px; font-family: inherit; }
+  .fridge-search input:focus { outline: none; border-color: var(--gold); }
+  .fridge-results { position: absolute; left: 12px; right: 12px; top: 100%; z-index: 5; background: var(--panel);
+    border: 1.5px solid var(--border); border-radius: 9px; overflow: hidden auto; max-height: 230px; display: none; box-shadow: 0 8px 20px var(--shadow); }
+  .fridge-results.show { display: block; }
+  .fridge-result { padding: 9px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--border); line-height: 1.3; }
+  .fridge-result:last-child { border-bottom: none; }
+  .fridge-result:hover { background: var(--bg2); }
+  .fridge-result .fr-name { font-weight: 700; color: var(--cream); }
+  .fridge-result .fr-sub { font-size: 11px; opacity: .6; }
+  .fridge-result.msg { cursor: default; opacity: .7; }
 </style>
 </head>
 <body>
@@ -404,7 +417,11 @@
   <!-- Fridge to Fridge planner -->
   <div class="planner-panel" id="fridgePanel" style="display:none;">
     <div class="planner-head">🏠 Fridge to Fridge <button class="planner-x" id="fridgeClose">✕</button></div>
-    <div class="planner-hint">Tap anywhere on the map to drop a friend's place. Build a crawl between homes, not pubs!</div>
+    <div class="planner-hint">Search an address, or tap anywhere on the map to drop a friend's place.</div>
+    <div class="fridge-search">
+      <input id="fridgeSearch" placeholder="🔍 Search an address or place…" autocomplete="off">
+      <div class="fridge-results" id="fridgeResults"></div>
+    </div>
     <div class="planner-list" id="fridgeList"></div>
     <div class="planner-stats" id="fridgeStats"></div>
     <div class="planner-actions">
@@ -1562,6 +1579,53 @@ function startFridgeCrawl() {
 $('fridgeClose').onclick = exitFridge;
 $('fridgeStart').onclick = startFridgeCrawl;
 $('fridgeClear').onclick = () => { clearFridges(); afterFridgeChange(); };
+
+/* address / place search (OpenStreetMap Nominatim), biased to Sydney */
+let fridgeSearchTimer = null;
+function hideFridgeResults() { const r = $('fridgeResults'); r.classList.remove('show'); r.innerHTML = ''; }
+$('fridgeSearch').addEventListener('input', e => {
+  clearTimeout(fridgeSearchTimer);
+  const q = e.target.value.trim();
+  if (q.length < 3) { hideFridgeResults(); return; }
+  fridgeSearchTimer = setTimeout(() => doFridgeSearch(q), 450);
+});
+$('fridgeSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { clearTimeout(fridgeSearchTimer); const q = e.target.value.trim(); if (q.length >= 3) doFridgeSearch(q); }
+});
+async function doFridgeSearch(q) {
+  const r = $('fridgeResults');
+  r.classList.add('show'); r.innerHTML = '<div class="fridge-result msg">Searching…</div>';
+  try {
+    const viewbox = '150.5,-33.5,151.4,-34.2';   // Sydney metro bias (lon,lat,lon,lat)
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=0&countrycodes=au&viewbox=${viewbox}&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+    if (!Array.isArray(data) || !data.length) { r.innerHTML = '<div class="fridge-result msg">No matches — try a fuller address.</div>'; return; }
+    r.innerHTML = '';
+    data.forEach(d => {
+      const el = document.createElement('div'); el.className = 'fridge-result';
+      const name = d.name || d.display_name.split(',')[0];
+      el.innerHTML = `<div class="fr-name">${escapeHtml(name)}</div><div class="fr-sub">${escapeHtml(d.display_name)}</div>`;
+      el.onclick = () => pickFridgeResult(d);
+      r.appendChild(el);
+    });
+  } catch (e) { r.innerHTML = '<div class="fridge-result msg">Search failed — check your connection.</div>'; }
+}
+function pickFridgeResult(d) {
+  hideFridgeResults();
+  $('fridgeSearch').value = '';
+  const lat = parseFloat(d.lat), lng = parseFloat(d.lon);
+  const suggested = (d.name || d.display_name.split(',')[0] || '').trim();
+  const name = (prompt('Whose place is this?', suggested) || '').trim();
+  if (!name) return;
+  const keys = Object.keys(TOPICS);
+  const topic = keys[Math.floor(Math.random() * keys.length)];
+  const idx = addFridgeData({ name, lat, lng, topic });
+  markers[idx].addTo(map); fridgeStops.push(idx);
+  afterFridgeChange();
+  map.setView([lat, lng], 16);
+  setTimeout(() => markers[idx].openPopup(), 160);
+}
 
 /* saved fridge crawls (store coordinates, not indices) */
 function getSavedFridges() { try { const s = JSON.parse(localStorage.getItem('fridge-saved')); return Array.isArray(s) ? s : []; } catch (e) { return []; } }
