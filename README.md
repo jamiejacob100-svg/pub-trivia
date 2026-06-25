@@ -50,6 +50,8 @@ A BYO crawl between people's homes instead of pubs. Open **🍻 Pub Crawl → Fr
 ## 🧭 Directions (walking or driving)
 Pub crawls and fridge crawls now draw the **real road route** between stops (not straight lines), with a **🚶 Walk / 🚗 Drive** toggle that shows the **total distance and time** for that mode. Tap **🧭 Directions** to see **turn-by-turn instructions** for each leg. Powered by the free OpenStreetMap-based Valhalla routing service; if it's unavailable it falls back to a straight-line estimate (marked "approx").
 
+**Navigate on the night:** the Directions panel can open the whole route in **Google Maps** or **Apple Maps**, and each leg has a **Navigate ▶** button that opens turn-by-turn GPS navigation from your *current location* to the next stop. During a crawl, each pub's popup also has a **🧭 Navigate here** button.
+
 ## 🍻 Pub Crawl mode
 Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Preset routes:
 - 🪨 **The Rocks Historic Crawl** — 8 pubs

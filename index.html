@@ -389,6 +389,13 @@
   .dir-step { display: flex; gap: 8px; font-size: 13px; padding: 4px 0; line-height: 1.4; }
   .dir-dot { color: var(--gold); flex-shrink: 0; }
   .dir-km { opacity: .55; font-size: 11px; }
+  .dir-ext { display: flex; gap: 8px; margin-bottom: 14px; }
+  .dir-ext button { flex: 1; background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
+    border-radius: 9px; padding: 9px; font-size: 12.5px; cursor: pointer; font-family: inherit; font-weight: 700; }
+  .dir-ext button:hover { border-color: var(--gold); }
+  .dir-nav { background: var(--gold); color: #fff; border: none; border-radius: 7px; padding: 4px 10px;
+    font-size: 11px; font-weight: 800; cursor: pointer; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
+  .dir-nav:hover { filter: brightness(1.08); }
 </style>
 </head>
 <body>
@@ -434,6 +441,10 @@
           <div class="prof-toggle"><button data-p="pedestrian" class="on">🚶 Walk</button><button data-p="auto">🚗 Drive</button></div>
         </div>
         <div class="dir-total" id="dirTotal"></div>
+        <div class="dir-ext">
+          <button id="dirGoogle">🗺️ Open route in Google Maps</button>
+          <button id="dirApple"> Apple Maps</button>
+        </div>
         <div id="dirSteps"></div>
       </div>
     </div>
@@ -1270,10 +1281,14 @@ function renderDirections() {
   $('dirTotal').textContent = routeMeta ? `${routeMeta.km.toFixed(1)} km · ~${Math.max(1, Math.round(routeMeta.min))} min ${profileWord()}` : 'No route yet';
   const box = $('dirSteps'); box.innerHTML = '';
   if (!routeMeta || !routeMeta.legs) { box.innerHTML = '<div class="mp-note" style="text-align:left">Turn-by-turn directions aren\'t available right now — showing a straight-line estimate. Try again in a moment.</div>'; return; }
+  const stops = (routeCtx && routeCtx.stops) || [];
   routeMeta.legs.forEach((leg, li) => {
     const name = (routeCtx && routeCtx.names && routeCtx.names[li + 1]) ? routeCtx.names[li + 1] : ('Stop ' + (li + 2));
+    const destIdx = stops[li + 1];
     const wrap = document.createElement('div'); wrap.className = 'dir-leg';
-    wrap.innerHTML = `<div class="dir-leg-h"><span style="color:var(--gold-bright)">→ ${escapeHtml(name)}</span> <span>${leg.km.toFixed(1)} km · ${Math.max(1, Math.round(leg.min))} min</span></div>`;
+    wrap.innerHTML = `<div class="dir-leg-h"><span style="color:var(--gold-bright)">→ ${escapeHtml(name)}</span>
+      <span>${leg.km.toFixed(1)} km · ${Math.max(1, Math.round(leg.min))} min</span>
+      ${destIdx != null ? `<button class="dir-nav" data-i="${destIdx}">Navigate ▶</button>` : ''}</div>`;
     leg.steps.forEach(s => {
       const r = document.createElement('div'); r.className = 'dir-step';
       r.innerHTML = `<span class="dir-dot">•</span><span>${escapeHtml(s.text)}${s.km > 0.03 ? ` <span class="dir-km">(${Math.round(s.km * 1000)} m)</span>` : ''}</span>`;
@@ -1281,9 +1296,32 @@ function renderDirections() {
     });
     box.appendChild(wrap);
   });
+  box.querySelectorAll('.dir-nav').forEach(b => b.onclick = () => navTo(+b.dataset.i));
 }
 function openDirections() { renderDirections(); $('dirOverlay').classList.add('active'); }
+/* ---- hand-off to Google / Apple Maps for live GPS navigation ---- */
+window.navTo = function (i) {   // navigate from current location to one pub
+  const p = PUBS[i], m = routeProfile === 'auto' ? 'driving' : 'walking';
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${m}`, '_blank');
+};
+function gmapsFullUrl(stops) {
+  const m = routeProfile === 'auto' ? 'driving' : 'walking';
+  if (stops.length < 2) { const p = PUBS[stops[0]]; return `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=${m}`; }
+  const o = PUBS[stops[0]], d = PUBS[stops[stops.length - 1]];
+  const mids = stops.slice(1, -1).slice(0, 9).map(i => `${PUBS[i].lat},${PUBS[i].lng}`).join('|');
+  let u = `https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}&travelmode=${m}`;
+  if (mids) u += `&waypoints=${encodeURIComponent(mids)}`;
+  return u;
+}
+function appleFullUrl(stops) {
+  const m = routeProfile === 'auto' ? 'd' : 'w';
+  const pts = stops.map(i => `${PUBS[i].lat},${PUBS[i].lng}`);
+  if (pts.length < 2) return `https://maps.apple.com/?daddr=${pts[0]}&dirflg=${m}`;
+  return `https://maps.apple.com/?saddr=${pts[0]}&daddr=${encodeURIComponent(pts.slice(1).join('+to:'))}&dirflg=${m}`;
+}
 $('dirClose').onclick = () => $('dirOverlay').classList.remove('active');
+$('dirGoogle').onclick = () => { if (routeCtx && routeCtx.stops.length) window.open(gmapsFullUrl(routeCtx.stops), '_blank'); };
+$('dirApple').onclick = () => { if (routeCtx && routeCtx.stops.length) window.open(appleFullUrl(routeCtx.stops), '_blank'); };
 $('plannerDir').onclick = openDirections;
 $('fridgeDir').onclick = openDirections;
 $('crawlDirBtn').onclick = openDirections;
@@ -1326,9 +1364,11 @@ function popupHtml(i) {
     if (st === 'done') note = `<div class="pop-note done">✅ Cleared — best ${bestScore[i]} pts.</div>`;
     btn = `<button class="start-btn" onclick="startQuiz(${i})">${st === 'done' ? 'Play Again 🔁' : 'Start Quiz ▶'}</button>`;
   }
+  const navBtn = (mode === 'crawl' && st !== 'off' && st !== 'locked')
+    ? `<button class="cam-btn" onclick="navTo(${i})">🧭 Navigate here</button>` : '';
   return `<div class="pop-name">${p.name}</div><div class="pop-sub">${p.area}</div>
     <div class="pop-topic">${t.emoji} ${t.name}</div>
-    <div class="pop-blurb">${p.blurb}</div>${note}${btn}
+    <div class="pop-blurb">${p.blurb}</div>${note}${btn}${navBtn}
     <button class="cam-btn" onclick="openCamera(${i})">📷 Camera</button>`;
 }
 
