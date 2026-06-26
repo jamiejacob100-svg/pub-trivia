@@ -55,7 +55,7 @@ Pub crawls and fridge crawls now draw the **real road route** between stops (not
 **Navigate on the night:** the Directions panel can open the whole route in **Google Maps** or **Apple Maps**, and each leg has a **Navigate ▶** button that opens turn-by-turn GPS navigation from your *current location* to the next stop. During a crawl, each pub's popup also has a **🧭 Navigate here** button.
 
 ## 🍻 Pub Crawl mode
-Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Preset routes:
+Pick a preset route — or your own custom plan — and the pubs unlock in order; clear each round to reach the next pub (🔒 = locked). Routes are automatically ordered into a **logical, no-backtracking path** (nearest-neighbour + 2-opt), and the final stop is marked with a **🏁 finish flag**. (In the planner, **↕ Optimise** previews this; fridge crawls keep your chosen order.) Preset routes:
 - 🪨 **The Rocks Historic Crawl** — 8 pubs
 - 🏙️ **CBD After-Work Circuit** — 4 pubs
 - 🌆 **Surry Hills & Darlo** — 8 pubs

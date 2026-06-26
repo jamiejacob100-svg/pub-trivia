@@ -357,6 +357,10 @@
     background: linear-gradient(180deg, #8fd0ec, #3f8fd6); border: 2px solid #133a55; box-shadow: 0 3px 8px rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; }
   .fridge-pin span { transform: rotate(45deg); font-size: 13px; font-weight: 800; color: #08263a; }
+  .finish-pin { width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: #fff; border: 2px solid #1c2a33; box-shadow: 0 3px 9px rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; }
+  .finish-pin span { transform: rotate(45deg); font-size: 17px; line-height: 1; }
   .fridge-search { position: relative; padding: 4px 12px 2px; }
   .fridge-search input { width: 100%; background: var(--bg2); border: 1.5px solid var(--border); color: var(--cream);
     padding: 9px 12px; border-radius: 9px; font-size: 14px; font-family: inherit; }
@@ -464,6 +468,7 @@
       <div class="planner-prof">
         <div class="prof-toggle"><button data-p="pedestrian" class="on">🚶 Walk</button><button data-p="auto">🚗 Drive</button></div>
         <button class="planner-mini" id="plannerDir">🧭 Directions</button>
+        <button class="planner-mini" id="plannerOpt">↕ Optimise</button>
       </div>
       <button class="btn" id="plannerStart" disabled>Start This Crawl ▶</button>
       <button class="btn ghost" id="plannerGolf" style="margin-top:8px;border-color:var(--green);color:var(--green);">⛳ Play as Pub Golf</button>
@@ -1188,6 +1193,34 @@ function fridgePin(n) {
   return L.divIcon({ className: '', html: `<div class="fridge-pin"><span>${n}</span></div>`,
     iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -30] });
 }
+function finishPin() {
+  return L.divIcon({ className: '', html: `<div class="finish-pin"><span>🏁</span></div>`,
+    iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -32] });
+}
+/* ---- route order optimiser: nearest-neighbour from the start + 2-opt (no backtracking) ---- */
+function pubDistKm(a, b) { return haversineKm([PUBS[a].lat, PUBS[a].lng], [PUBS[b].lat, PUBS[b].lng]); }
+function orderDistance(order) { let d = 0; for (let k = 1; k < order.length; k++) d += pubDistKm(order[k - 1], order[k]); return d; }
+function optimizeOrder(stops) {
+  if (!stops || stops.length <= 3) return stops ? stops.slice() : [];
+  const start = stops[0];
+  let order = [start], rem = stops.slice(1), cur = start;
+  while (rem.length) {                       // nearest-neighbour, keeping the chosen start fixed
+    let bi = 0, bd = Infinity;
+    for (let j = 0; j < rem.length; j++) { const d = pubDistKm(cur, rem[j]); if (d < bd) { bd = d; bi = j; } }
+    cur = rem[bi]; order.push(cur); rem.splice(bi, 1);
+  }
+  let improved = true, guard = 0;
+  while (improved && guard++ < 60) {          // 2-opt: uncross the path
+    improved = false;
+    for (let i = 1; i < order.length - 1; i++) {
+      for (let k = i + 1; k < order.length; k++) {
+        const cand = order.slice(0, i).concat(order.slice(i, k + 1).reverse(), order.slice(k + 1));
+        if (orderDistance(cand) + 1e-9 < orderDistance(order)) { order = cand; improved = true; }
+      }
+    }
+  }
+  return order;
+}
 
 // Google-Maps-style route: a darker casing under a solid coloured line with rounded
 // joins/caps, plus repeating directional arrows. Returns a FeatureGroup (has getBounds).
@@ -1425,7 +1458,11 @@ $('clusterBtn').onclick = () => setClustering(!clusterOn);
 map.fitBounds(PUBS.slice(0, CURATED_COUNT).map(p => [p.lat, p.lng]), { padding: [70, 70] });
 
 function refreshMarkers() {
-  PUBS.forEach((p, i) => markers[i].setIcon(pinIcon(pubState(i))));
+  const lastStop = (mode === 'crawl' && crawlRoute && crawlRoute.stops.length) ? crawlRoute.stops[crawlRoute.stops.length - 1] : -1;
+  PUBS.forEach((p, i) => {
+    if (i === lastStop && pubState(i) !== 'done') markers[i].setIcon(finishPin());   // 🏁 finish line
+    else markers[i].setIcon(pinIcon(pubState(i)));
+  });
 }
 
 function updateTopbar() {
@@ -1526,9 +1563,11 @@ function buildRouteList() {
 
 function startCrawl(idx) { startCrawlRoute(ROUTES[idx]); }
 
-function startCrawlRoute(route) {
+function startCrawlRoute(route, keepOrder) {
   mode = 'crawl';
-  crawlRoute = route;
+  // order pubs into a logical, no-backtracking path (fridge crawls keep their order)
+  const stops = keepOrder ? route.stops.slice() : optimizeOrder(route.stops);
+  crawlRoute = Object.assign({}, route, { stops });
   crawlPos = 0;
   $('crawlOverlay').classList.remove('active');
   $('plannerPanel').style.display = 'none';
@@ -1538,12 +1577,12 @@ function startCrawlRoute(route) {
   if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
   // custom routes can include clustered (extra) pubs — show their markers individually
   crawlExtraMarkers = [];
-  route.stops.forEach(i => { if (PUBS[i].extra) { markers[i].addTo(map); crawlExtraMarkers.push(i); } });
-  renderRoute('crawl', route.stops);
+  stops.forEach(i => { if (PUBS[i].extra) { markers[i].addTo(map); crawlExtraMarkers.push(i); } });
+  renderRoute('crawl', stops);
   $('crawlDirBtn').style.display = 'block';
   refreshMarkers();
   updateTopbar();
-  map.fitBounds(L.latLngBounds(route.stops.map(i => [PUBS[i].lat, PUBS[i].lng])), { padding: [80, 80] });
+  map.fitBounds(L.latLngBounds(stops.map(i => [PUBS[i].lat, PUBS[i].lng])), { padding: [80, 80] });
   goToActivePub();
 }
 
@@ -1679,6 +1718,7 @@ $('plannerGolf').onclick = () => {
 };
 $('plannerShare').onclick = sharePlan;
 $('plannerClear').onclick = () => { plannerStops = []; afterPlanChange(); };
+$('plannerOpt').onclick = () => { if (plannerStops.length > 2) { plannerStops = optimizeOrder(plannerStops); afterPlanChange(); } };
 
 /* named saved crawls */
 function getSavedCrawls() { try { const s = JSON.parse(localStorage.getItem('pubcrawl-saved')); return Array.isArray(s) ? s : []; } catch (e) { return []; } }
@@ -1802,7 +1842,7 @@ function startFridgeCrawl() {
   crawlIsFridge = true;
   $('fridgePanel').style.display = 'none';
   map.off('click', fridgeMapClick);
-  startCrawlRoute({ emoji: '🏠', name: 'Fridge to Fridge', desc: '', stops: [...fridgeStops] });
+  startCrawlRoute({ emoji: '🏠', name: 'Fridge to Fridge', desc: '', stops: [...fridgeStops] }, true);
 }
 $('fridgeClose').onclick = exitFridge;
 $('fridgeStart').onclick = startFridgeCrawl;
@@ -1879,7 +1919,7 @@ function loadSavedFridge(entry, andStart) {
     showPubMarkers(false);
     fridgeStops.forEach(idx => markers[idx].addTo(map));
     crawlIsFridge = true;
-    startCrawlRoute({ emoji: '🏠', name: entry.name, desc: '', stops: [...fridgeStops] });
+    startCrawlRoute({ emoji: '🏠', name: entry.name, desc: '', stops: [...fridgeStops] }, true);
   } else {
     enterFridge();
   }
@@ -2055,6 +2095,7 @@ $('teeOff').onclick = () => {
   if (golfCourseIdx === -1) { holes = golfCustomHoles ? [...golfCustomHoles] : null; course = { emoji: '⛳', name: 'Your Custom Course', holes }; }
   else { holes = GOLF_COURSES[golfCourseIdx].holes; course = { ...GOLF_COURSES[golfCourseIdx], holes }; }
   if (!holes) holes = shuffle(PUBS.slice(0, PUB_COUNT).map((_, i) => i)).slice(0, 9); // Surprise Nine
+  holes = optimizeOrder(holes);             // logical, no-backtracking hole order
   course.holes = holes;
   golf = {
     course,
@@ -2065,7 +2106,7 @@ $('teeOff').onclick = () => {
   };
   // map: focus on the holes + draw the real road route
   map.removeLayer(cluster); spreadExtras(false);
-  holes.forEach((pi, n) => { markers[pi].addTo(map); markers[pi].setIcon(golfPin(n + 1)); });
+  holes.forEach((pi, n) => { markers[pi].addTo(map); markers[pi].setIcon(n === holes.length - 1 ? finishPin() : golfPin(n + 1)); });   // 🏁 last hole
   renderRoute('golf', holes);
   map.fitBounds(L.latLngBounds(holes.map(i => [PUBS[i].lat, PUBS[i].lng])), { padding: [80, 80] });
   startAttempt();
