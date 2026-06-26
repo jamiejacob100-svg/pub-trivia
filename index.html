@@ -417,6 +417,7 @@
     </label>
     <div class="pill turn-pill" id="turnPill" style="display:none;"></div>
     <div class="pill" id="progressPill">0 cleared</div>
+    <button class="crawl-btn" id="clusterBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">⦿ Clustered</button>
     <button class="crawl-btn" id="teamsBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">👥 Teams</button>
     <button class="crawl-btn" id="photosBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">📷 Photos<span class="cam-badge" id="photoBadge" style="display:none;">0</span></button>
     <button class="crawl-btn" id="golfBtn" style="background:var(--bg2);color:var(--green);border:1.5px solid var(--green);">⛳ Pub Golf</button>
@@ -1387,7 +1388,26 @@ PUBS.forEach((p, i) => {
   markers.push(m);
   if (p.extra) cluster.addLayer(m); else m.addTo(map);
 });
-map.addLayer(cluster);
+const PUB_COUNT = PUBS.length;   // real pubs (home/fridge stops get appended later)
+// Toggle between clustered (numbered bubbles) and every pin shown individually.
+let clusterOn = (localStorage.getItem('pub-cluster') !== 'off');
+function spreadExtras(show) {
+  for (let i = CURATED_COUNT; i < PUB_COUNT; i++) { if (show) markers[i].addTo(map); else map.removeLayer(markers[i]); }
+}
+function applyFreePubLayers() {
+  if (clusterOn) { spreadExtras(false); if (!map.hasLayer(cluster)) map.addLayer(cluster); }
+  else { if (map.hasLayer(cluster)) map.removeLayer(cluster); spreadExtras(true); }
+}
+function updateClusterBtn() { const b = $('clusterBtn'); if (b) b.textContent = clusterOn ? '⦿ Clustered' : '⦿ All pins'; }
+function setClustering(on) {
+  clusterOn = on;
+  try { localStorage.setItem('pub-cluster', on ? 'on' : 'off'); } catch (e) {}
+  updateClusterBtn();
+  if (mode === 'free') applyFreePubLayers();
+}
+applyFreePubLayers();
+updateClusterBtn();
+$('clusterBtn').onclick = () => setClustering(!clusterOn);
 map.fitBounds(PUBS.slice(0, CURATED_COUNT).map(p => [p.lat, p.lng]), { padding: [70, 70] });
 
 function refreshMarkers() {
@@ -1498,7 +1518,7 @@ function startCrawlRoute(route) {
   crawlPos = 0;
   $('crawlOverlay').classList.remove('active');
   $('plannerPanel').style.display = 'none';
-  map.removeLayer(cluster);   // hide the 500+ extra pubs; focus on the route
+  map.removeLayer(cluster); spreadExtras(false);   // hide all extra pubs (clustered or spread)
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
   if (plannerLine) { map.removeLayer(plannerLine); plannerLine = null; }
   if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
@@ -1526,8 +1546,8 @@ function exitCrawl() {
     if (fridgeLine) { map.removeLayer(fridgeLine); fridgeLine = null; }
     crawlIsFridge = false;
   }
-  map.addLayer(cluster);
   for (let i = 0; i < CURATED_COUNT; i++) markers[i].addTo(map);   // ensure featured pubs are back
+  applyFreePubLayers();                                            // cluster or spread per toggle
   refreshMarkers();
   updateTopbar();
   map.closePopup();
@@ -1657,8 +1677,8 @@ $('plannerSave').onclick = () => {
 
 /* ===================== FRIDGE TO FRIDGE ===================== */
 function showPubMarkers(show) {
-  if (show) { map.addLayer(cluster); for (let i = 0; i < CURATED_COUNT; i++) markers[i].addTo(map); }
-  else { map.removeLayer(cluster); for (let i = 0; i < CURATED_COUNT; i++) map.removeLayer(markers[i]); }
+  if (show) { for (let i = 0; i < CURATED_COUNT; i++) markers[i].addTo(map); applyFreePubLayers(); }
+  else { map.removeLayer(cluster); spreadExtras(false); for (let i = 0; i < CURATED_COUNT; i++) map.removeLayer(markers[i]); }
 }
 // Create a home stop (appended to PUBS so the crawl/quiz engine treats it like any pub). Returns its index.
 function addFridgeData(d) {
@@ -2005,10 +2025,10 @@ $('teeOff').onclick = () => {
     hole: 0, pIdx: 0,
   };
   // map: focus on the 9 holes
-  map.removeLayer(cluster);
+  map.removeLayer(cluster); spreadExtras(false);
   if (golfLine) map.removeLayer(golfLine);
   golfLine = drawPath(holes.map(i => [PUBS[i].lat, PUBS[i].lng]), '#7fe0a0', '#2e7d4f').addTo(map);
-  holes.forEach((pi, n) => markers[pi].setIcon(golfPin(n + 1)));
+  holes.forEach((pi, n) => { markers[pi].addTo(map); markers[pi].setIcon(golfPin(n + 1)); });
   map.fitBounds(golfLine.getBounds(), { padding: [80, 80] });
   startAttempt();
 };
@@ -2144,7 +2164,8 @@ function showGolfCard(final) {
 $('golfResume').onclick = () => startAttempt();
 $('golfExit').onclick = () => {
   if (golfLine) { map.removeLayer(golfLine); golfLine = null; }
-  map.addLayer(cluster);
+  if (golf && golf.course) golf.course.holes.forEach(pi => { if (PUBS[pi] && PUBS[pi].extra) map.removeLayer(markers[pi]); });
+  applyFreePubLayers();
   refreshMarkers();
   golf = null;
   $('golfOverlay').classList.remove('active');

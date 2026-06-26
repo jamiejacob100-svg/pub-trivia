@@ -5,7 +5,7 @@ An interactive map of **560+ Sydney pubs & bars** — tap a marker, answer that 
 **▶️ Play it live:** https://jamiejacob100-svg.github.io/pub-trivia/
 
 ## How it works
-- A full-screen map of Sydney drops a 🍺 pin on each pub (clustered for clarity — zoom in to split them out).
+- A full-screen map of Sydney drops a 🍺 pin on each pub. By default nearby pins **cluster** into numbered bubbles; tap **⦿ Clustered / ⦿ All pins** in the top bar to switch to showing **every pin individually**, even zoomed out (your choice is remembered).
 - Click a pin → a popup shows the **pub name**, its **trivia topic**, and a **Start Quiz** button.
 - Each round is **10 questions** with an optional **per-question timer** (Off / 15 / 20 / 30s).
 - Clear a pub and its pin turns into a ✅. Progress shows in the top bar.
