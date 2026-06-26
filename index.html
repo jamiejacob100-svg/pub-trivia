@@ -377,6 +377,9 @@
   .planner-prof { display: flex; gap: 8px; margin-bottom: 8px; }
   .planner-prof .prof-toggle { flex: 0 0 auto; }
   .planner-prof .planner-mini { flex: 1; }
+  .golf-nav-row { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; align-items: stretch; }
+  .golf-nav-row .prof-toggle { flex: 0 0 auto; }
+  .golf-nav-row .planner-mini { flex: 1; min-width: 90px; }
   .crawl-dir-btn { position: absolute; z-index: 1100; left: 14px; bottom: 14px; background: var(--panel);
     border: 2px solid var(--gold); color: var(--gold-bright); font-weight: 800; border-radius: 12px; padding: 11px 15px;
     cursor: pointer; box-shadow: 0 8px 20px var(--shadow); font-family: inherit; font-size: 14px; }
@@ -463,6 +466,7 @@
         <button class="planner-mini" id="plannerDir">🧭 Directions</button>
       </div>
       <button class="btn" id="plannerStart" disabled>Start This Crawl ▶</button>
+      <button class="btn ghost" id="plannerGolf" style="margin-top:8px;border-color:var(--green);color:var(--green);">⛳ Play as Pub Golf</button>
       <div class="planner-row2">
         <button class="planner-mini" id="plannerSave">💾 Save</button>
         <button class="planner-mini" id="plannerShare">🔗 Share</button>
@@ -551,6 +555,7 @@
           <button class="add-row" id="golfAddPlayer">+ Add player</button>
           <label class="field-label" style="color:var(--gold);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;display:block;margin:18px 0 8px;">Course</label>
           <div id="golfCourses"></div>
+          <button class="add-row" id="golfBuild" style="margin-top:4px;">🛠️ Build your own course</button>
           <div class="soft-row" id="softToggle"><div class="soft-box" id="softBox"></div><span>Soft-drink / water option (same scoring)</span></div>
           <button class="btn" id="teeOff">Tee Off ⛳</button>
         </div>
@@ -558,6 +563,11 @@
         <div id="golfPlay" style="display:none;">
           <div class="golf-hole-head"><span class="h" id="golfHoleNo">Hole 1 / 9</span><span class="par" id="golfPar">Par 4</span></div>
           <div class="ptrack"><div class="pfill" id="golfFill"></div></div>
+          <div class="golf-nav-row">
+            <div class="prof-toggle"><button data-p="pedestrian" class="on">🚶 Walk</button><button data-p="auto">🚗 Drive</button></div>
+            <button class="planner-mini" id="golfDirBtn">🧭 Directions</button>
+            <button class="planner-mini" id="golfNavBtn">📍 To this hole</button>
+          </div>
           <div class="drink-card">
             <div class="pub" id="golfPub"></div>
             <div class="drink" id="golfDrink"></div>
@@ -1229,10 +1239,11 @@ async function fetchRoute(latlngs, profile) {
   });
   return { coords, km: d.trip.summary.length, min: d.trip.summary.time / 60, legs };
 }
-function routeColors(kind) { return kind === 'fridge' ? ['#8b3fd6', '#5a1f9a'] : ['#1a73e8', '#0b4ea2']; }
-function getLine(kind) { return kind === 'planner' ? plannerLine : kind === 'fridge' ? fridgeLine : routeLine; }
-function setLine(kind, l) { if (kind === 'planner') plannerLine = l; else if (kind === 'fridge') fridgeLine = l; else routeLine = l; }
+function routeColors(kind) { return kind === 'fridge' ? ['#8b3fd6', '#5a1f9a'] : kind === 'golf' ? ['#2e9e6a', '#1c6b46'] : ['#1a73e8', '#0b4ea2']; }
+function getLine(kind) { return kind === 'planner' ? plannerLine : kind === 'fridge' ? fridgeLine : kind === 'golf' ? golfLine : routeLine; }
+function setLine(kind, l) { if (kind === 'planner') plannerLine = l; else if (kind === 'fridge') fridgeLine = l; else if (kind === 'golf') golfLine = l; else routeLine = l; }
 function modeForKind(kind) { return kind === 'planner' ? 'planner' : kind === 'fridge' ? 'fridge' : 'crawl'; }
+function routeKindValid(kind) { return kind === 'golf' ? !!golf : (mode === modeForKind(kind)); }
 function renderRoute(kind, stops) {
   const latlngs = stops.map(i => [PUBS[i].lat, PUBS[i].lng]);
   routeCtx = { kind, stops: stops.slice(), names: stops.map(i => PUBS[i].name) };
@@ -1249,7 +1260,7 @@ function renderRoute(kind, stops) {
   routeTimer = setTimeout(async () => {
     try {
       const meta = await fetchRoute(latlngs, want);
-      if (mode !== modeForKind(kind) || want !== routeProfile || !routeCtx || routeCtx.stops.length !== n) return;
+      if (!routeKindValid(kind) || want !== routeProfile || !routeCtx || routeCtx.stops.length !== n) return;
       const cur2 = getLine(kind); if (cur2) map.removeLayer(cur2);
       setLine(kind, drawPath(meta.coords, color, edge).addTo(map));
       routeMeta = Object.assign({ routed: true }, meta);
@@ -1267,6 +1278,8 @@ function updateRouteStats(kind) {
   } else if (kind === 'fridge') {
     const n = fridgeStops.length;
     $('fridgeStats').textContent = n >= 2 ? `${n} homes · ${line}` : (n === 1 ? '1 home — add more to build a crawl' : '');
+  } else if (kind === 'golf') {
+    const b = $('golfDirBtn'); if (b && routeMeta) b.innerHTML = `🧭 ${routeMeta.km.toFixed(1)} km · ${Math.max(1, Math.round(routeMeta.min))} min ${word}`;
   } else {
     const b = $('crawlDirBtn'); if (b && routeMeta) b.innerHTML = `🧭 ${routeMeta.km.toFixed(1)} km · ${Math.max(1, Math.round(routeMeta.min))} min ${word}`;
   }
@@ -1277,6 +1290,7 @@ function setProfile(p) {
   if (mode === 'planner') renderRoute('planner', plannerStops);
   else if (mode === 'fridge') renderRoute('fridge', fridgeStops);
   else if (mode === 'crawl' && crawlRoute) renderRoute('crawl', crawlRoute.stops);
+  else if (golf && golf.course) renderRoute('golf', golf.course.holes);
 }
 function renderDirections() {
   $('dirTotal').textContent = routeMeta ? `${routeMeta.km.toFixed(1)} km · ~${Math.max(1, Math.round(routeMeta.min))} min ${profileWord()}` : 'No route yet';
@@ -1656,6 +1670,13 @@ function sharePlan() {
 }
 $('plannerClose').onclick = exitPlanner;
 $('plannerStart').onclick = startPlannedCrawl;
+$('plannerGolf').onclick = () => {
+  if (plannerStops.length < 2) { alert('Add at least 2 pubs to play as golf.'); return; }
+  golfCustomHoles = [...plannerStops];
+  golfCourseIdx = -1;
+  exitPlanner();
+  openGolf();
+};
 $('plannerShare').onclick = sharePlan;
 $('plannerClear').onclick = () => { plannerStops = []; afterPlanChange(); };
 
@@ -1962,6 +1983,8 @@ let golfLine = null;
 let golfNames = ['Player 1', 'Player 2'];
 let golfSoft = false;
 let golfCourseIdx = 0;
+let golfCustomHoles = null;   // custom course (pub indices) built in the planner
+function golfHoleDef(h) { return GOLF_HOLES[h % GOLF_HOLES.length]; }
 
 function golfPin(n) {
   return L.divIcon({ className: '', html: `<div class="golf-pin">${n}</div>`,
@@ -1988,12 +2011,20 @@ function renderGolfPlayers() {
 
 function renderGolfCourses() {
   const list = $('golfCourses'); list.innerHTML = '';
-  GOLF_COURSES.forEach((c, idx) => {
+  if (golfCustomHoles && golfCustomHoles.length) {
+    const n = golfCustomHoles.length, par = golfCustomHoles.reduce((s, _, h) => s + golfHoleDef(h).par, 0);
     const el = document.createElement('button');
-    el.className = 'route' + (idx === golfCourseIdx ? '' : '');
-    el.style.borderColor = idx === golfCourseIdx ? 'var(--gold)' : 'var(--border)';
-    el.innerHTML = `<div class="r-emoji">${c.emoji}</div><div>
-      <div class="r-name">${c.name}</div><div class="r-desc">9 holes · par ${GOLF_PAR_TOTAL}</div></div>`;
+    el.className = 'route'; el.style.borderColor = golfCourseIdx === -1 ? 'var(--gold)' : 'var(--border)';
+    el.innerHTML = `<div class="r-emoji">⛳</div><div><div class="r-name">Your Custom Course</div><div class="r-desc">${n} holes · par ${par}</div></div>`;
+    el.onclick = () => { golfCourseIdx = -1; renderGolfCourses(); };
+    list.appendChild(el);
+  } else if (golfCourseIdx === -1) { golfCourseIdx = 0; }
+  GOLF_COURSES.forEach((c, idx) => {
+    const n = c.holes ? c.holes.length : 9;
+    const par = c.holes ? c.holes.reduce((s, _, h) => s + golfHoleDef(h).par, 0) : GOLF_PAR_TOTAL;
+    const el = document.createElement('button');
+    el.className = 'route'; el.style.borderColor = idx === golfCourseIdx ? 'var(--gold)' : 'var(--border)';
+    el.innerHTML = `<div class="r-emoji">${c.emoji}</div><div><div class="r-name">${c.name}</div><div class="r-desc">${n} holes · par ${par}</div></div>`;
     el.onclick = () => { golfCourseIdx = idx; renderGolfCourses(); };
     list.appendChild(el);
   });
@@ -2013,36 +2044,43 @@ function openGolf() {
 
 $('golfBtn').onclick = openGolf;
 $('golfClose').onclick = () => $('golfOverlay').classList.remove('active');
+$('golfBuild').onclick = () => { $('golfOverlay').classList.remove('active'); enterPlanner(); };
+$('golfDirBtn').onclick = openDirections;
+$('golfNavBtn').onclick = () => { if (golf && golf.course) navTo(golf.course.holes[golf.hole]); };
 $('golfAddPlayer').onclick = () => { if (golfNames.length < 6) { golfNames.push('Player ' + (golfNames.length+1)); renderGolfPlayers(); } };
 $('softToggle').onclick = () => { golfSoft = !golfSoft; $('softBox').classList.toggle('on', golfSoft); $('softBox').textContent = golfSoft ? '✓' : ''; };
 
 $('teeOff').onclick = () => {
-  let holes = GOLF_COURSES[golfCourseIdx].holes;
-  if (!holes) holes = shuffle(PUBS.map((_, i) => i)).slice(0, 9); // Surprise Nine
+  let holes, course;
+  if (golfCourseIdx === -1) { holes = golfCustomHoles ? [...golfCustomHoles] : null; course = { emoji: '⛳', name: 'Your Custom Course', holes }; }
+  else { holes = GOLF_COURSES[golfCourseIdx].holes; course = { ...GOLF_COURSES[golfCourseIdx], holes }; }
+  if (!holes) holes = shuffle(PUBS.slice(0, PUB_COUNT).map((_, i) => i)).slice(0, 9); // Surprise Nine
+  course.holes = holes;
   golf = {
-    course: { ...GOLF_COURSES[golfCourseIdx], holes },
-    players: golfNames.map((nm, i) => ({ name: nm.trim() || `Player ${i+1}`, color: TEAM_COLORS[i], scores: [] })),
+    course,
+    players: golfNames.map((nm, i) => ({ name: nm.trim() || `Player ${i + 1}`, color: TEAM_COLORS[i], scores: [] })),
     hole: 0, pIdx: 0,
+    N: holes.length,
+    parTotal: holes.reduce((s, _, h) => s + golfHoleDef(h).par, 0),
   };
-  // map: focus on the 9 holes
+  // map: focus on the holes + draw the real road route
   map.removeLayer(cluster); spreadExtras(false);
-  if (golfLine) map.removeLayer(golfLine);
-  golfLine = drawPath(holes.map(i => [PUBS[i].lat, PUBS[i].lng]), '#7fe0a0', '#2e7d4f').addTo(map);
   holes.forEach((pi, n) => { markers[pi].addTo(map); markers[pi].setIcon(golfPin(n + 1)); });
-  map.fitBounds(golfLine.getBounds(), { padding: [80, 80] });
+  renderRoute('golf', holes);
+  map.fitBounds(L.latLngBounds(holes.map(i => [PUBS[i].lat, PUBS[i].lng])), { padding: [80, 80] });
   startAttempt();
 };
 
 function startAttempt() {
-  const h = golf.hole, hole = GOLF_HOLES[h], pubIdx = golf.course.holes[h], pub = PUBS[pubIdx];
+  const h = golf.hole, N = golf.N, hole = golfHoleDef(h), pubIdx = golf.course.holes[h], pub = PUBS[pubIdx];
   golf.swigs = hole.par; golf.birdie = false; golf.answered = false; golf.pen = [];
 
   $('golfSetup').style.display = 'none';
   $('golfCard').style.display = 'none';
   $('golfPlay').style.display = 'block';
-  $('golfHoleNo').textContent = `Hole ${h + 1} / 9`;
+  $('golfHoleNo').textContent = `Hole ${h + 1} / ${N}`;
   $('golfPar').textContent = `Par ${hole.par}`;
-  $('golfFill').style.width = `${(h / 9) * 100}%`;
+  $('golfFill').style.width = `${(h / N) * 100}%`;
   $('golfPub').textContent = `${pub.name} · ${pub.area}`;
   $('golfDrink').textContent = golfSoft ? hole.soft : hole.drink;
   $('golfParTxt').textContent = `Par: ${hole.par} swig${hole.par !== 1 ? 's' : ''}`;
@@ -2051,7 +2089,7 @@ function startAttempt() {
 
   // trivia twist — fresh question per player, harder as the holes go on
   const t = TOPICS[pub.topic];
-  const dealt = dealQuestions(pubIdx, 1, h / 8)[0];
+  const dealt = dealQuestions(pubIdx, 1, N > 1 ? h / (N - 1) : 0.5)[0];
   const options = dealt.options;
   golf.triviaCorrect = dealt.correctIndex;
   $('golfQ').textContent = `🧠 ${t.emoji} ${dealt.q}`;
@@ -2092,7 +2130,7 @@ function golfAnswer(idx, options) {
 }
 
 function updateSwig() {
-  const par = GOLF_HOLES[golf.hole].par;
+  const par = golfHoleDef(golf.hole).par;
   const el = $('swigVal');
   el.textContent = golf.swigs;
   el.classList.toggle('under', golf.swigs <= par);
@@ -2118,7 +2156,7 @@ $('logHole').onclick = () => {
   golf.players[golf.pIdx].scores[golf.hole] = swigScore + penTotal;
   golf.pIdx++;
   if (golf.pIdx >= golf.players.length) { golf.pIdx = 0; golf.hole++; }
-  if (golf.hole >= 9) showGolfCard(true);
+  if (golf.hole >= golf.N) showGolfCard(true);
   else startAttempt();
 };
 
@@ -2129,17 +2167,20 @@ function showGolfCard(final) {
   $('golfPlay').style.display = 'none';
   $('golfCard').style.display = 'block';
 
+  const N = golf.N, parTotal = golf.parTotal;
   const totals = golf.players.map(p => p.scores.reduce((s, v) => s + (v || 0), 0));
   const minTotal = Math.min(...totals);
   let head = '<thead><tr><th class="nm">Player</th>';
-  for (let i = 1; i <= 9; i++) head += `<th>${i}</th>`;
+  for (let i = 1; i <= N; i++) head += `<th>${i}</th>`;
   head += '<th>Tot</th></tr></thead>';
   let body = '<tbody>';
-  body += '<tr class="par-row"><td class="nm">Par</td>' + GOLF_HOLES.map(h => `<td>${h.par}</td>`).join('') + `<td>${GOLF_PAR_TOTAL}</td></tr>`;
+  body += '<tr class="par-row"><td class="nm">Par</td>';
+  for (let h = 0; h < N; h++) body += `<td>${golfHoleDef(h).par}</td>`;
+  body += `<td>${parTotal}</td></tr>`;
   golf.players.forEach((p, pi) => {
     const lead = final && totals[pi] === minTotal;
     body += `<tr class="${lead ? 'lead' : ''}"><td class="nm"><span style="color:${p.color}">●</span> ${p.name}</td>`;
-    for (let h = 0; h < 9; h++) body += `<td>${p.scores[h] != null ? p.scores[h] : '·'}</td>`;
+    for (let h = 0; h < N; h++) body += `<td>${p.scores[h] != null ? p.scores[h] : '·'}</td>`;
     body += `<td class="tot">${totals[pi]}</td></tr>`;
   });
   body += '</tbody>';
@@ -2147,7 +2188,7 @@ function showGolfCard(final) {
 
   if (final) {
     const winners = golf.players.filter((_, i) => totals[i] === minTotal).map(p => p.name);
-    const vsPar = minTotal - GOLF_PAR_TOTAL;
+    const vsPar = minTotal - golf.parTotal;
     const parTxt = vsPar === 0 ? 'level par' : vsPar < 0 ? `${-vsPar} under par` : `${vsPar} over par`;
     $('golfWinner').innerHTML = `<div style="font-size:48px;">🏆</div>
       <div style="font-size:22px;font-weight:800;color:var(--gold-bright);">${winners.length > 1 ? "It's a tie!" : winners[0] + ' wins!'}</div>
