@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script>
 <style>
   :root {
@@ -403,9 +404,42 @@
   .dir-nav { background: var(--gold); color: #fff; border: none; border-radius: 7px; padding: 4px 10px;
     font-size: 11px; font-weight: 800; cursor: pointer; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
   .dir-nav:hover { filter: brightness(1.08); }
+
+  /* Account gate: covers the whole app until someone is signed in */
+  .auth-gate { position: absolute; inset: 0; z-index: 5000; display: none; align-items: center; justify-content: center;
+    padding: 18px; background: linear-gradient(180deg, #d9e8ef, var(--bg)); }
+  .auth-gate.active { display: flex; }
+  .auth-msg { min-height: 20px; margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--red); text-align: center; line-height: 1.4; }
+  .auth-msg.ok { color: var(--green); }
+  .auth-link { display: block; width: 100%; margin-top: 12px; background: none; border: none; color: var(--gold);
+    font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: underline; }
 </style>
 </head>
 <body>
+  <!-- Account gate: shown until the visitor has created an account or signed in -->
+  <div class="auth-gate active" id="authGate">
+    <div class="card" style="max-width:420px;">
+      <div class="card-head" style="text-align:center;">
+        <div style="font-size:40px;line-height:1;">🍺</div>
+        <div class="title" id="authTitle">Create your account</div>
+        <div class="eyebrow" style="margin-top:4px;">Sydney Pub Crawl Trivia</div>
+      </div>
+      <div class="card-body">
+        <div class="mp-note" id="authLoading">Loading…</div>
+        <form id="authForm" style="display:none;" novalidate>
+          <div class="mp-setup-row" id="authNameRow"><label for="authName">Your name</label><input id="authName" maxlength="30" autocomplete="name" placeholder="e.g. Jamie"></div>
+          <div class="mp-setup-row"><label for="authEmail">Email address</label><input id="authEmail" type="email" maxlength="120" autocomplete="email" placeholder="you@example.com"></div>
+          <div class="mp-setup-row" id="authPassRow"><label for="authPass">Password</label><input id="authPass" type="password" maxlength="100" autocomplete="new-password" placeholder="At least 6 characters"></div>
+          <div class="auth-msg" id="authMsg"></div>
+          <button class="btn" type="submit" id="authSubmit" style="margin-top:8px;">Create account</button>
+          <button class="auth-link" type="button" id="authToggle">Already have an account? Sign in</button>
+          <button class="auth-link" type="button" id="authForgot" style="display:none;">Forgot your password?</button>
+          <div class="mp-note" id="authNote"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="topbar">
     <span class="logo">🍺</span>
     <div>
@@ -429,6 +463,23 @@
     <button class="crawl-btn" id="photosBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">📷 Photos<span class="cam-badge" id="photoBadge" style="display:none;">0</span></button>
     <button class="crawl-btn" id="golfBtn" style="background:var(--bg2);color:var(--green);border:1.5px solid var(--green);">⛳ Pub Golf</button>
     <button class="crawl-btn" id="crawlBtn">🍻 Pub Crawl</button>
+    <button class="crawl-btn" id="accountBtn" style="background:var(--bg2);color:var(--gold-bright);border:1.5px solid var(--gold);">👤 Account</button>
+  </div>
+
+  <!-- Account details / sign out -->
+  <div class="overlay" id="accountOverlay">
+    <div class="card" style="max-width:420px;">
+      <div class="card-head">
+        <div class="eyebrow">Signed in as</div>
+        <div class="title" id="accName"></div>
+        <button class="close-x" id="accClose">&times;</button>
+      </div>
+      <div class="card-body">
+        <div id="accEmail" style="font-size:15px;word-break:break-all;"></div>
+        <div class="mp-note" id="accNote" style="text-align:left;"></div>
+        <button class="btn ghost" id="accSignOut">Sign out</button>
+      </div>
+    </div>
   </div>
 
   <div id="map"></div>
@@ -2776,6 +2827,139 @@ updateTopbar();
   if (!m) return;
   const stops = m[1].split(',').map(Number).filter(i => i >= 0 && i < PUBS.length);
   if (stops.length) setTimeout(() => enterPlanner(stops), 400);
+})();
+
+/* ===================== ACCOUNTS (gate before the app is usable) =====================
+   Real accounts use Firebase Authentication (email + password). If email sign-in isn't
+   switched on for the Firebase project, or Firebase can't load, the account is kept on
+   this device only (name + email, no password). */
+let authMode = 'local';     // 'firebase' | 'local'
+let authSignup = true;      // gate form: create account (true) or sign in (false)
+let authUser = null;        // { name, email }
+let authBusy = false;
+let fbAuthReady = false;
+const AUTH_OFF = ['auth/operation-not-allowed', 'auth/configuration-not-found', 'auth/admin-restricted-operation'];
+
+function getLocalAccount() {
+  try { const a = JSON.parse(localStorage.getItem('pub-account')); return a && a.email ? a : null; } catch (e) { return null; }
+}
+function saveLocalAccount(name, email) {
+  const acct = { name, email };
+  try { localStorage.setItem('pub-account', JSON.stringify(acct)); } catch (e) {}
+  authMode = 'local';
+  setAuthUser(acct);
+}
+function setAuthMsg(text, ok) { const m = $('authMsg'); m.textContent = text || ''; m.classList.toggle('ok', !!ok); }
+function renderAuthForm() {
+  const fb = authMode === 'firebase', signup = authSignup || !fb;
+  $('authLoading').style.display = 'none';
+  $('authForm').style.display = 'block';
+  $('authTitle').textContent = signup ? 'Create your account' : 'Welcome back';
+  $('authNameRow').style.display = signup ? '' : 'none';
+  $('authPassRow').style.display = fb ? '' : 'none';
+  $('authPass').autocomplete = signup ? 'new-password' : 'current-password';
+  $('authPass').placeholder = signup ? 'At least 6 characters' : 'Your password';
+  $('authSubmit').textContent = signup ? 'Create account' : 'Sign in';
+  $('authToggle').style.display = fb ? '' : 'none';
+  $('authToggle').textContent = signup ? 'Already have an account? Sign in' : 'New here? Create an account';
+  $('authForgot').style.display = (fb && !signup) ? '' : 'none';
+  $('authNote').textContent = fb ? 'Your email is only used to sign you in.' : 'Your account is saved on this device.';
+}
+function setAuthUser(u) {
+  authUser = u;
+  if (u) {
+    $('authGate').classList.remove('active');
+    $('authPass').value = '';
+    const label = (u.name || u.email.split('@')[0]).split(' ')[0].slice(0, 12);
+    $('accountBtn').textContent = '👤 ' + label;
+  } else {
+    $('accountOverlay').classList.remove('active');
+    $('authGate').classList.add('active');
+    setAuthMsg('');
+    renderAuthForm();
+  }
+}
+function authErrorText(code) {
+  switch (code) {
+    case 'auth/email-already-in-use': return 'That email already has an account — sign in instead.';
+    case 'auth/invalid-email': return 'Enter a valid email address.';
+    case 'auth/weak-password': return 'Choose a password of at least 6 characters.';
+    case 'auth/wrong-password': case 'auth/user-not-found':
+    case 'auth/invalid-credential': case 'auth/invalid-login-credentials': return 'Email or password is incorrect.';
+    case 'auth/too-many-requests': return 'Too many attempts — wait a minute and try again.';
+    case 'auth/network-request-failed': return 'No connection — check your internet and try again.';
+    default: return 'Something went wrong — please try again.';
+  }
+}
+
+$('authForm').onsubmit = async (e) => {
+  e.preventDefault();
+  if (authBusy) return;
+  const fb = authMode === 'firebase', signup = authSignup || !fb;
+  const name = $('authName').value.trim(), email = $('authEmail').value.trim(), pass = $('authPass').value;
+  if (signup && !name) return setAuthMsg('Enter your name.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setAuthMsg('Enter a valid email address.');
+  if (fb && signup && pass.length < 6) return setAuthMsg('Choose a password of at least 6 characters.');
+  if (fb && !signup && !pass) return setAuthMsg('Enter your password.');
+  if (!fb) return saveLocalAccount(name, email);
+  authBusy = true; $('authSubmit').disabled = true; setAuthMsg('');
+  try {
+    if (signup) {
+      const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+      await cred.user.updateProfile({ displayName: name });
+      setAuthUser({ name, email: cred.user.email });
+    } else {
+      await firebase.auth().signInWithEmailAndPassword(email, pass);   // onAuthStateChanged lets them in
+    }
+  } catch (err) {
+    if (AUTH_OFF.includes(err.code)) {            // email sign-in not enabled on the Firebase project
+      if (signup) saveLocalAccount(name, email);
+      else { authMode = 'local'; renderAuthForm(); setAuthMsg("Online sign-in isn't available yet — create an account on this device."); }
+    } else setAuthMsg(authErrorText(err.code));
+  } finally { authBusy = false; $('authSubmit').disabled = false; }
+};
+$('authToggle').onclick = () => { authSignup = !authSignup; setAuthMsg(''); renderAuthForm(); };
+$('authForgot').onclick = async () => {
+  const email = $('authEmail').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setAuthMsg('Enter your email address first.');
+  try { await firebase.auth().sendPasswordResetEmail(email); }
+  catch (err) {
+    if (err.code === 'auth/network-request-failed' || err.code === 'auth/too-many-requests') return setAuthMsg(authErrorText(err.code));
+    if (AUTH_OFF.includes(err.code)) return setAuthMsg("Password reset isn't available yet.");
+  }
+  setAuthMsg('If that email has an account, a reset link is on its way.', true);
+};
+
+$('accountBtn').onclick = () => {
+  if (!authUser) return;
+  $('accName').textContent = '👤 ' + (authUser.name || 'Your account');
+  $('accEmail').textContent = authUser.email;
+  $('accNote').textContent = authMode === 'firebase' ? '' : 'This account is saved on this device only.';
+  $('accountOverlay').classList.add('active');
+};
+$('accClose').onclick = () => $('accountOverlay').classList.remove('active');
+$('accSignOut').onclick = async () => {
+  try { localStorage.removeItem('pub-account'); } catch (e) {}
+  authSignup = false;
+  if (authMode === 'firebase') {
+    try { await firebase.auth().signOut(); } catch (e) { setAuthUser(null); }   // onAuthStateChanged shows the gate
+  } else {
+    authMode = fbAuthReady ? 'firebase' : 'local';
+    authSignup = true;
+    setAuthUser(null);
+  }
+};
+
+(function initAuth() {
+  try { fbAuthReady = mpInit() && typeof firebase.auth === 'function'; } catch (e) { fbAuthReady = false; }
+  if (!fbAuthReady) { authMode = 'local'; return setAuthUser(getLocalAccount()); }
+  authMode = 'firebase';
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) { authMode = 'firebase'; return setAuthUser({ name: user.displayName || '', email: user.email }); }
+    const local = getLocalAccount();
+    if (local) { authMode = 'local'; setAuthUser(local); }
+    else { authMode = 'firebase'; setAuthUser(null); }
+  }, () => { authMode = 'local'; setAuthUser(getLocalAccount()); });
 })();
 </script>
 </body>

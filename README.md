@@ -4,6 +4,12 @@ An interactive map of **560+ Sydney pubs & bars** — tap a marker, answer that 
 
 **▶️ Play it live:** https://jamiejacob100-svg.github.io/pub-trivia/
 
+## 👤 Accounts
+The app opens on a **Create your account** screen and stays locked until the visitor signs up (name, email, password) or signs in. The **👤** button in the top bar shows who is signed in and has **Sign out**.
+
+- Accounts use **Firebase Authentication**. To switch it on: Firebase console → **Build → Authentication → Get started → Email/Password → Enable**. Once enabled, accounts work on any device and include a password-reset email.
+- Until that is enabled (or if Firebase can't load), the app falls back to a **device-only account**: name and email saved in that browser, no password.
+
 ## How it works
 - A full-screen map of Sydney drops a 🍺 pin on each pub. By default nearby pins **cluster** into numbered bubbles; tap **⦿ Clustered / ⦿ All pins** in the top bar to switch to showing **every pin individually**, even zoomed out (your choice is remembered).
 - Click a pin → a popup shows the **pub name**, its **trivia topic**, and a **Start Quiz** button.
